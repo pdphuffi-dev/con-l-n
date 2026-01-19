@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
+import io from 'socket.io-client'
 
 // Get network IP for QR codes (change this to your machine's IP)
 const NETWORK_IP = '192.168.0.104'; // Change this to your actual IP address
@@ -62,11 +63,28 @@ const QRCode = ({ value, size = 120 }) => {
 
 export default function Users() {
 
+    const [userData, setUserData] = useState([]);
+    const [socket, setSocket] = useState(null);
+
     useEffect(() => {
         getUsers();
-    }, [])
 
-    const [userData, setUserData] = useState([]);
+        // Connect to Socket.IO server
+        const newSocket = io('http://localhost:3001');
+        setSocket(newSocket);
+
+        // Listen for user updates (when IP is captured)
+        newSocket.on('userUpdated', (data) => {
+            console.log('User updated via socket:', data);
+            // Refresh user list when any user is updated
+            getUsers();
+        });
+
+        // Cleanup on unmount
+        return () => {
+            newSocket.disconnect();
+        };
+    }, []);
 
     const getUsers = async (e) => {
 

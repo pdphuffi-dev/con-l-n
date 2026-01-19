@@ -140,6 +140,16 @@ router.put('/update-delivery/:id', async (req, res) => {
             { new: true }
         );
         console.log("Delivery date updated by:", scannedBy);
+
+        // Emit socket event to update all connected clients
+        const io = req.app.get('io');
+        io.emit('productUpdated', {
+            productId: req.params.id,
+            type: 'delivery',
+            scannedBy: scannedBy,
+            timestamp: new Date()
+        });
+
         res.status(201).json(updateProducts);
     }
     catch (err) {
@@ -170,6 +180,16 @@ router.put('/update-received/:id', async (req, res) => {
             { new: true }
         );
         console.log("Received date updated by:", scannedBy);
+
+        // Emit socket event to update all connected clients
+        const io = req.app.get('io');
+        io.emit('productUpdated', {
+            productId: req.params.id,
+            type: 'received',
+            scannedBy: scannedBy,
+            timestamp: new Date()
+        });
+
         res.status(201).json(updateProducts);
     }
     catch (err) {
@@ -200,6 +220,15 @@ router.get('/update-delivery/:id', async (req, res) => {
             { new: true }
         );
         console.log("Delivery date updated via QR scan by:", scannedBy);
+
+        // Emit socket event to update all connected clients
+        const io = req.app.get('io');
+        io.emit('productUpdated', {
+            productId: req.params.id,
+            type: 'delivery',
+            scannedBy: scannedBy,
+            timestamp: new Date()
+        });
 
         const userInfo = scannedUser ?
             `<div class="user-info" style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
@@ -325,6 +354,15 @@ router.get('/update-received/:id', async (req, res) => {
             { new: true }
         );
         console.log("Received date updated via QR scan by:", scannedBy);
+
+        // Emit socket event to update all connected clients
+        const io = req.app.get('io');
+        io.emit('productUpdated', {
+            productId: req.params.id,
+            type: 'received',
+            scannedBy: scannedBy,
+            timestamp: new Date()
+        });
 
         const userInfo = scannedUser ?
             `<div class="user-info" style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
@@ -597,6 +635,15 @@ router.put('/update-user-ip/:id', async (req, res) => {
             { new: true }
         );
         console.log("User IP updated via QR scan");
+
+        // Emit socket event to update all connected clients
+        const io = req.app.get('io');
+        io.emit('userUpdated', {
+            userId: req.params.id,
+            deviceIP: clientIP,
+            timestamp: new Date()
+        });
+
         res.status(201).json(updateUser);
     }
     catch (err) {
@@ -685,6 +732,14 @@ router.get('/capture-user-ip/:id', async (req, res) => {
             { new: true }
         );
         console.log("User IP captured via QR scan");
+
+        // Emit socket event to update all connected clients
+        const io = req.app.get('io');
+        io.emit('userUpdated', {
+            userId: req.params.id,
+            deviceIP: clientIP,
+            timestamp: new Date()
+        });
 
         res.status(200).send(`
             <html>

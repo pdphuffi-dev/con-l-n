@@ -20,17 +20,17 @@ import {
 function App() {
   return (
     <div className="App">
-      <Navbar title="IMS" about="About"></Navbar>
+      <Navbar title="Phong Pro" about="About"></Navbar>
 
       <Router>
         <Routes>
-          <Route exact path="/" element={<Home />} />
+          <Route exact path="/" element={<Products />} />
           <Route path="/products" element={<Products />} />
           <Route path="/insertproduct" element={<InsertProduct />} />
           <Route path="/updateproduct/:id" element={<UpdateProduct />} />
           <Route path="/users" element={<Users />} />
           <Route path="/insertuser" element={<InsertUser />} />
-          <Route path="/about" element={<About />} />
+          {/* <Route path="/about" element={<About />} /> */}
 
         </Routes>
 
