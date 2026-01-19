@@ -5,10 +5,6 @@ const ProductSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
-        ProductPrice: {
-            type: Number,
-            required: true,
-        },
         ProductBarcode: {
             type: Number,
             required: true,

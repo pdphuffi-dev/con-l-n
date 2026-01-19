@@ -25,8 +25,8 @@ export default function InsertProduct() {
     const addProduct = async (e) => {
         e.preventDefault();
 
-        if (!productName || !productPrice || !productBarcode) {
-            setError("*Please fill in all the required fields.");
+        if (!productName || !productBarcode) {
+            setError("*Làm ơn nhập đầy đủ thông tin.");
             return;
         }
 
@@ -67,26 +67,28 @@ export default function InsertProduct() {
 
     return (
         <div className='container-fluid p-5'>
-             <h1 className=''>Enter Product Information</h1>
-             
-            <div className="mt-5 col-lg-6 col-md-6 col-12 fs-4">
-                <label htmlFor="product_name" className="form-label fw-bold">Product Name</label>
-                <input type="text" onChange={setName} value={productName} className="form-control fs-5" id="product_name" placeholder="Enter Product Name" required />
+             <h1 className='text-center mb-5'>Enter Product Information</h1>
+
+            <div className="mt-4 row justify-content-center">
+                <div className="col-lg-5 col-md-5 col-12 fs-4 mb-4">
+                    <label htmlFor="product_name" className="form-label fw-bold">Tên hàng</label>
+                    <input type="text" onChange={setName} value={productName} className="form-control fs-5" id="product_name" placeholder="Nhập tên hàng" required />
+                </div>
+                <div className="col-lg-5 col-md-5 col-12 fs-4 mb-4">
+                    <label htmlFor="product_barcode" className="form-label fw-bold">Số hiệu lố</label>
+                    <input type="number" onChange={setBarcode} value={productBarcode} maxLength={12} className="form-control fs-5" id="product_barcode" placeholder="Nhập số hiệu lố" required />
+                </div>
             </div>
-            <div className="mt-3 col-lg-6 col-md-6 col-12 fs-4">
-                <label htmlFor="product_price" className="form-label fw-bold">Product Price</label>
-                <input type="number" onChange={setPrice} value={productPrice} className="form-control fs-5" id="product_price" placeholder="Enter Product Price" required />
+
+            <div className='d-flex justify-content-center mt-4'>
+                <NavLink to="/products" className='btn btn-secondary me-4 fs-4 px-4 py-2'>Huỷ bỏ</NavLink>
+                <button type="submit" onClick={addProduct} className="btn btn-primary fs-4 px-4 py-2" disabled={loading}>
+                    {loading ? 'Đang thêm...' : 'Thêm'}
+                </button>
             </div>
-            <div className="mt-3 mb-5 col-lg-6 col-md-6 col-12 fs-4">
-                <label htmlFor="product_barcode" className="form-label fw-bold">Product Barcode</label>
-                <input type="number" onChange={setBarcode} value={productBarcode} maxLength={12} className="form-control fs-5" id="product_barcode" placeholder="Enter Product Barcode" required />
-            </div>
-            <div className='d-flex justify-content-center col-lg-6 col-md-6'>
-                <NavLink to="/products" className='btn btn-primary me-5 fs-4'>Cancel</NavLink>
-                <button type="submit" onClick={addProduct} className="btn btn-primary fs-4" disabled={loading}>{loading ? 'Inserting...' : 'Insert'}</button>
-            </div>
-            <div className="col text-center col-lg-6">
-                {error && <div className="text-danger mt-3 fs-5 fw-bold">{error}</div>}
+
+            <div className="text-center mt-4">
+                {error && <div className="text-danger fs-5 fw-bold">{error}</div>}
             </div>
         </div>
     )

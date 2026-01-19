@@ -68,11 +68,14 @@ export default function Products() {
                         <thead>
                             <tr className="tr_color">
                                 <th scope="col">#</th>
-                                <th scope="col">Product Name</th>
-                                <th scope="col">Product Price</th>
-                                <th scope="col">Product Barcode</th>
-                                <th scope="col">Update</th>
-                                <th scope="col">Delete</th>
+                                <th scope="col">Ngày</th>
+                                <th scope="col">Tên hàng</th>
+                                {/* <th scope="col">Product Price</th> */}
+                                <th scope="col">Số hiệu lố</th>
+                                <th scope="col">Ngày giao</th>
+                                <th scope="col">Ngày nhận</th>
+                                {/* <th scope="col">Update</th>
+                                <th scope="col">Delete</th> */}
                             </tr>
                         </thead>
                         <tbody>
@@ -84,11 +87,13 @@ export default function Products() {
                                             <tr>
                                                 <th scope="row">{id + 1}</th>
                                                 <td>{element.ProductName}</td>
-                                                <td>{element.ProductPrice}</td>
+                                                {/* <td>{element.ProductPrice}</td> */}
                                                 <td>{element.ProductBarcode}</td>
+                                                <td>{element.ProductDeliveryDate}</td>
+                                                <td>{element.ProductReceivedDate}</td>
 
-                                                <td><NavLink to={`/updateproduct/${element._id}`} className="btn btn-primary"><i className="fa-solid fa-pen-to-square"></i></NavLink></td>
-                                                <td><button className="btn btn-danger" onClick={() => deleteProduct(element._id)}><i class="fa-solid fa-trash"></i></button></td>
+                                                {/* <td><NavLink to={`/updateproduct/${element._id}`} className="btn btn-primary"><i className="fa-solid fa-pen-to-square"></i></NavLink></td>
+                                                <td><button className="btn btn-danger" onClick={() => deleteProduct(element._id)}><i class="fa-solid fa-trash"></i></button></td> */}
 
                                             </tr>
                                         </>
