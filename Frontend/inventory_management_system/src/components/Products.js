@@ -132,7 +132,7 @@ export default function Products() {
                     <br /><strong>Lưu ý:</strong> Nếu IP không đúng, hãy thay đổi NETWORK_IP trong code thành địa chỉ IP thực của máy bạn (ví dụ: 192.168.1.105).
                 </div>
                 <div className="overflow-auto mt-3" style={{ maxHeight: "40rem" }}>
-                    <table className="table table-striped table-hover mt-3 fs-6" style={{ minWidth: '1200px' }}>
+                    <table className="table table-striped table-hover mt-3 fs-6" style={{ minWidth: '1400px' }}>
                         <thead>
                             <tr className="tr_color">
                                 <th scope="col">#</th>
@@ -142,6 +142,8 @@ export default function Products() {
                                 <th scope="col">Ngày giao</th>
                                 <th scope="col">Ngày nhận</th>
                                 <th scope="col">Ngày cập nhật</th>
+                                {/* <th scope="col">Người quét giao</th> */}
+                                {/* <th scope="col">Người quét nhận</th> */}
                                 <th scope="col">QR Code</th>
                                 {/* <th scope="col">Update</th>
                                 <th scope="col">Delete</th> */}
@@ -185,8 +187,30 @@ export default function Products() {
                                                 <td>{formatDate(element.ProductCreatedDate)}</td>
                                                 <td>{element.ProductName}</td>
                                                 <td>{element.ProductBarcode}</td>
-                                                <td>{formatDate(element.ProductDeliveryDate)}</td>
-                                                <td>{formatDate(element.ProductReceivedDate)}</td>
+                                                <td>
+                                                    {formatDate(element.ProductDeliveryDate)}
+                                                    <div style={{ fontSize: '12px', maxWidth: '120px' }}>
+                                                    {element.DeliveryScannedBy ? (
+                                                        <span style={{ color: '#28a745', fontWeight: '500' }}>
+                                                            {element.DeliveryScannedBy}
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{ color: '#6c757d' }}>Chưa quét</span>
+                                                    )}
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    {formatDate(element.ProductReceivedDate)}
+                                                    <div style={{ fontSize: '12px', maxWidth: '120px' }}>
+                                                    {element.ReceivedScannedBy ? (
+                                                        <span style={{ color: '#007bff', fontWeight: '500' }}>
+                                                            {element.ReceivedScannedBy}
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{ color: '#6c757d' }}>Chưa quét</span>
+                                                    )}
+                                                    </div>
+                                                </td>
                                                 <td>{formatDate(element.ProductUpdatedDate)}</td>
                                                 <td style={{ minWidth: '140px' }}>
                                                     {qrContent ? (

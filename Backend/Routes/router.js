@@ -15,7 +15,12 @@ router.post("/insertproduct", async (req, res) => {
             res.status(422).json("Product is already added.")
         }
         else {
-            const addProduct = new products({ ProductName, ProductBarcode })
+            const addProduct = new products({
+                ProductName,
+                ProductBarcode,
+                DeliveryScannedBy: null,
+                ReceivedScannedBy: null
+            })
 
             await addProduct.save();
             res.status(201).json(addProduct)
@@ -76,11 +81,19 @@ router.put('/updateproduct/:id', async (req, res) => {
         };
 
         // Chỉ thêm các trường ngày nếu chúng được cung cấp
-        if (ProductDeliveryDate) {
-            updateData.ProductDeliveryDate = new Date(ProductDeliveryDate);
+        if (ProductDeliveryDate !== undefined) {
+            updateData.ProductDeliveryDate = ProductDeliveryDate ? new Date(ProductDeliveryDate) : null;
+            // Reset thông tin người quét nếu xóa ngày giao
+            if (!ProductDeliveryDate) {
+                updateData.DeliveryScannedBy = null;
+            }
         }
-        if (ProductReceivedDate) {
-            updateData.ProductReceivedDate = new Date(ProductReceivedDate);
+        if (ProductReceivedDate !== undefined) {
+            updateData.ProductReceivedDate = ProductReceivedDate ? new Date(ProductReceivedDate) : null;
+            // Reset thông tin người quét nếu xóa ngày nhận
+            if (!ProductReceivedDate) {
+                updateData.ReceivedScannedBy = null;
+            }
         }
 
         const updateProducts = await products.findByIdAndUpdate(req.params.id, updateData, { new: true });
@@ -107,16 +120,26 @@ router.delete('/deleteproduct/:id', async (req, res) => {
 
 // Update delivery date via QR scan
 router.put('/update-delivery/:id', async (req, res) => {
+    const clientIP = req.ip ||
+                    req.connection.remoteAddress ||
+                    req.socket.remoteAddress ||
+                    (req.connection.socket ? req.connection.socket.remoteAddress : null);
+
     try {
+        // Find user by IP
+        const scannedUser = await users.findOne({ DeviceIP: clientIP });
+        const scannedBy = scannedUser ? `${scannedUser.UserName} (${scannedUser.EmployeeCode})` : `IP: ${clientIP}`;
+
         const updateProducts = await products.findByIdAndUpdate(
             req.params.id,
             {
                 ProductDeliveryDate: new Date(),
-                ProductUpdatedDate: new Date()
+                ProductUpdatedDate: new Date(),
+                DeliveryScannedBy: scannedBy
             },
             { new: true }
         );
-        console.log("Delivery date updated");
+        console.log("Delivery date updated by:", scannedBy);
         res.status(201).json(updateProducts);
     }
     catch (err) {
@@ -127,16 +150,26 @@ router.put('/update-delivery/:id', async (req, res) => {
 
 // Update received date via QR scan
 router.put('/update-received/:id', async (req, res) => {
+    const clientIP = req.ip ||
+                    req.connection.remoteAddress ||
+                    req.socket.remoteAddress ||
+                    (req.connection.socket ? req.connection.socket.remoteAddress : null);
+
     try {
+        // Find user by IP
+        const scannedUser = await users.findOne({ DeviceIP: clientIP });
+        const scannedBy = scannedUser ? `${scannedUser.UserName} (${scannedUser.EmployeeCode})` : `IP: ${clientIP}`;
+
         const updateProducts = await products.findByIdAndUpdate(
             req.params.id,
             {
                 ProductReceivedDate: new Date(),
-                ProductUpdatedDate: new Date()
+                ProductUpdatedDate: new Date(),
+                ReceivedScannedBy: scannedBy
             },
             { new: true }
         );
-        console.log("Received date updated");
+        console.log("Received date updated by:", scannedBy);
         res.status(201).json(updateProducts);
     }
     catch (err) {
@@ -155,16 +188,18 @@ router.get('/update-delivery/:id', async (req, res) => {
     try {
         // Find user by IP
         const scannedUser = await users.findOne({ DeviceIP: clientIP });
+        const scannedBy = scannedUser ? `${scannedUser.UserName} (${scannedUser.EmployeeCode})` : `IP: ${clientIP}`;
 
         const updateProducts = await products.findByIdAndUpdate(
             req.params.id,
             {
                 ProductDeliveryDate: new Date(),
-                ProductUpdatedDate: new Date()
+                ProductUpdatedDate: new Date(),
+                DeliveryScannedBy: scannedBy
             },
             { new: true }
         );
-        console.log("Delivery date updated via QR scan");
+        console.log("Delivery date updated via QR scan by:", scannedBy);
 
         const userInfo = scannedUser ?
             `<div class="user-info" style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
@@ -217,7 +252,6 @@ router.get('/update-delivery/:id', async (req, res) => {
                     <div class="success">✅</div>
                     <div class="message">Ngày giao đã được cập nhật thành công!</div>
                     ${userInfo}
-                    <a href="http://localhost:3000" class="button">Quay lại hệ thống</a>
                 </body>
             </html>
         `);
@@ -264,7 +298,6 @@ router.get('/update-delivery/:id', async (req, res) => {
                 <body>
                     <div class="error">❌</div>
                     <div class="message">Có lỗi xảy ra khi cập nhật ngày giao. Vui lòng thử lại.</div>
-                    <a href="http://localhost:3000" class="button">Quay lại hệ thống</a>
                 </body>
             </html>
         `);
@@ -280,16 +313,18 @@ router.get('/update-received/:id', async (req, res) => {
     try {
         // Find user by IP
         const scannedUser = await users.findOne({ DeviceIP: clientIP });
+        const scannedBy = scannedUser ? `${scannedUser.UserName} (${scannedUser.EmployeeCode})` : `IP: ${clientIP}`;
 
         const updateProducts = await products.findByIdAndUpdate(
             req.params.id,
             {
                 ProductReceivedDate: new Date(),
-                ProductUpdatedDate: new Date()
+                ProductUpdatedDate: new Date(),
+                ReceivedScannedBy: scannedBy
             },
             { new: true }
         );
-        console.log("Received date updated via QR scan");
+        console.log("Received date updated via QR scan by:", scannedBy);
 
         const userInfo = scannedUser ?
             `<div class="user-info" style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
@@ -342,7 +377,6 @@ router.get('/update-received/:id', async (req, res) => {
                     <div class="success">✅</div>
                     <div class="message">Ngày nhận đã được cập nhật thành công!</div>
                     ${userInfo}
-                    <a href="http://localhost:3000" class="button">Quay lại hệ thống</a>
                 </body>
             </html>
         `);
@@ -389,7 +423,6 @@ router.get('/update-received/:id', async (req, res) => {
                 <body>
                     <div class="error">❌</div>
                     <div class="message">Có lỗi xảy ra khi cập nhật ngày nhận. Vui lòng thử lại.</div>
-                    <a href="http://localhost:3000" class="button">Quay lại hệ thống</a>
                 </body>
             </html>
         `);
@@ -593,7 +626,6 @@ router.get('/capture-user-ip/:id', async (req, res) => {
                     <div class="success">✅</div>
                     <div class="message">IP thiết bị đã được lưu thành công!</div>
                     <div class="ip-info">IP: ${clientIP}</div>
-                    <a href="http://localhost:3000" class="button">Quay lại hệ thống</a>
                 </body>
             </html>
         `);
@@ -640,7 +672,6 @@ router.get('/capture-user-ip/:id', async (req, res) => {
                 <body>
                     <div class="error">❌</div>
                     <div class="message">Có lỗi xảy ra khi lưu IP thiết bị. Vui lòng thử lại.</div>
-                    <a href="http://localhost:3000" class="button">Quay lại hệ thống</a>
                 </body>
             </html>
         `);

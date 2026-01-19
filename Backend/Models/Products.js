@@ -26,6 +26,14 @@ const ProductSchema = new mongoose.Schema(
             type: Date,
             required: false,
         },
+        DeliveryScannedBy: {
+            type: String,
+            required: false,
+        },
+        ReceivedScannedBy: {
+            type: String,
+            required: false,
+        },
     });
 
 const Products = mongoose.model("Products", ProductSchema)
