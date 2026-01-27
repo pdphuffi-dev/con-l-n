@@ -1,0 +1,11 @@
+node_modules
+.git
+.env.local
+.env.development
+.DS_Store
+*.log
+build
+.cache
+coverage
+.nyc_output
+test-*.html
