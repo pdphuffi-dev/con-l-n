@@ -52,6 +52,7 @@ module.exports = {
 
   form: {
     productName: 'Tên sản phẩm',
-    lotNumber: 'Số hiệu lô'
+    lotNumber: 'Số hiệu lô',
+    employeeCode: 'Mã nhân viên'
   }
 };

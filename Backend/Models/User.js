@@ -14,6 +14,18 @@ const UserSchema = new mongoose.Schema(
             type: String,
             required: false,
         },
+        DeviceId: {
+            type: String,
+            required: false,
+            unique: true,
+            sparse: true
+        },
+        DeviceInfo: {
+            browser: String,
+            os: String,
+            userAgent: String,
+            lastSeen: Date
+        },
         CreatedDate: {
             type: Date,
             default: Date.now,

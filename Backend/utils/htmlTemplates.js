@@ -343,6 +343,109 @@ const generateHTML = (language, templateType, data = {}) => {
         </html>
       `;
 
+    case 'deviceRegistrationForm':
+      return `
+        <html>
+          <head>
+            <title>${translate('users.addNewUser')}</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            ${baseStyles}
+            <style>
+              body {
+                background-color: #e3f2fd;
+              }
+              .device-info {
+                background-color: #f1f8e9;
+                padding: 15px;
+                border-radius: 5px;
+                margin-bottom: 20px;
+                font-size: 12px;
+                font-family: monospace;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="success">👤</div>
+              <h2>${translate('users.addNewUser')}</h2>
+              
+              <div class="device-info">
+                <strong>Device ID:</strong> ${data.deviceId}<br>
+                <strong>IP:</strong> ${data.ip}<br>
+                <strong>Browser:</strong> ${data.browser}<br>
+                <strong>OS:</strong> ${data.os}
+              </div>
+              
+              <form id="registerForm">
+                <div class="form-group">
+                  <label for="userName">${translate('users.userName')}:</label>
+                  <input type="text" id="userName" name="userName" required placeholder="${translate('users.userName')}">
+                </div>
+                <div class="form-group">
+                  <label for="employeeCode">${translate('form.employeeCode', 'Mã nhân viên')}:</label>
+                  <input type="text" id="employeeCode" name="employeeCode" required placeholder="${translate('form.employeeCode', 'Mã nhân viên')}">
+                </div>
+                <button type="submit" class="button" id="submitBtn">${translate('form.submit')}</button>
+              </form>
+              <div id="message"></div>
+            </div>
+
+            <script>
+              const form = document.getElementById('registerForm');
+              const submitBtn = document.getElementById('submitBtn');
+              const messageDiv = document.getElementById('message');
+
+              form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const userName = document.getElementById('userName').value.trim();
+                const employeeCode = document.getElementById('employeeCode').value.trim();
+
+                if (!userName || !employeeCode) {
+                  messageDiv.innerHTML = '<div class="error">${translate('validation.allFieldsRequired')}</div>';
+                  return;
+                }
+
+                submitBtn.disabled = true;
+                submitBtn.textContent = '${translate('common.loading')}';
+
+                try {
+                  const response = await fetch('/register-device', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Accept-Language': '${language}',
+                      'X-Language': '${language}'
+                    },
+                    body: JSON.stringify({
+                      userName: userName,
+                      employeeCode: employeeCode
+                    })
+                  });
+
+                  const data = await response.json();
+
+                  if (response.ok) {
+                    messageDiv.innerHTML = '<div style="color: #28a745; font-size: 16px; margin-top: 15px;">✅ ' + data.message + '</div>';
+                    form.reset();
+                    setTimeout(() => {
+                      window.close();
+                    }, 3000);
+                  } else {
+                    messageDiv.innerHTML = '<div class="error">' + data.message + '</div>';
+                  }
+                } catch (error) {
+                  messageDiv.innerHTML = '<div class="error">${translate('error.serverError')}</div>';
+                } finally {
+                  submitBtn.disabled = false;
+                  submitBtn.textContent = '${translate('form.submit')}';
+                }
+              });
+            </script>
+          </body>
+        </html>
+      `;
+
     case 'errorPage':
       return `
         <html>

@@ -7,6 +7,8 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useNotification } from '../hooks/useNotification'
 import api from '../utils/api'
 import Notification from './Notification'
+import IPDebug from './IPDebug'
+import IPTestQR from './IPTestQR'
 
 // QR Code component using online service - Read only for mobile scanning
 const QRCode = ({ value, size = 120 }) => {
@@ -307,6 +309,17 @@ export default function Products() {
                         </tbody>
                     </table>
                 </div>
+
+                {process.env.NODE_ENV === 'development' && (
+                    <div className="row">
+                        <div className="col-md-8">
+                            <IPDebug />
+                        </div>
+                        <div className="col-md-4">
+                            <IPTestQR />
+                        </div>
+                    </div>
+                )}
 
             </div>
 

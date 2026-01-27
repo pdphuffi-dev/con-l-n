@@ -52,6 +52,7 @@ module.exports = {
 
   form: {
     productName: '製品名',
-    lotNumber: 'ロット番号'
+    lotNumber: 'ロット番号',
+    employeeCode: '従業員コード'
   }
 };

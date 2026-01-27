@@ -3,6 +3,8 @@ const router = express.Router();
 const products = require('../Models/Products');
 const users = require('../Models/User');
 const { generateHTML } = require('../utils/htmlTemplates');
+const { getRealIP, getClientInfo } = require('../utils/getRealIP');
+const { generateDeviceId, getDeviceInfo, isValidDeviceId } = require('../utils/deviceId');
 
 router.post("/insertproduct", async (req, res) => {
     const { ProductName, ProductBarcode } = req.body;
@@ -126,15 +128,18 @@ router.delete('/deleteproduct/:id', async (req, res) => {
 // Update delivery date via QR scan
 router.put('/update-delivery/:id', async (req, res) => {
     const { quantity } = req.body;
-    const clientIP = req.ip ||
-                    req.connection.remoteAddress ||
-                    req.socket.remoteAddress ||
-                    (req.connection.socket ? req.connection.socket.remoteAddress : null);
+    const clientIP = getRealIP(req);
 
     try {
         // Find user by IP
-        const scannedUser = await users.findOne({ DeviceIP: clientIP });
-        const scannedBy = scannedUser ? `${scannedUser.UserName} (${scannedUser.EmployeeCode})` : `IP: ${clientIP}`;
+        const deviceId = generateDeviceId(req);
+        const scannedUser = await users.findOne({ 
+            $or: [
+                { DeviceId: deviceId },
+                { DeviceIP: clientIP }
+            ]
+        });
+        const scannedBy = scannedUser ? `${scannedUser.UserName} (${scannedUser.EmployeeCode})` : `Device: ${deviceId.substring(0, 8)}`;
 
         const updateData = {
             ProductDeliveryDate: new Date(),
@@ -256,15 +261,18 @@ router.get('/receive-product/:id', async (req, res) => {
 // Update received date via QR scan
 router.put('/update-received/:id', async (req, res) => {
     const { ReceivedQuantity } = req.body;
-    const clientIP = req.ip ||
-                    req.connection.remoteAddress ||
-                    req.socket.remoteAddress ||
-                    (req.connection.socket ? req.connection.socket.remoteAddress : null);
+    const clientIP = getRealIP(req);
 
     try {
         // Find user by IP
-        const scannedUser = await users.findOne({ DeviceIP: clientIP });
-        const scannedBy = scannedUser ? `${scannedUser.UserName} (${scannedUser.EmployeeCode})` : `IP: ${clientIP}`;
+        const deviceId = generateDeviceId(req);
+        const scannedUser = await users.findOne({ 
+            $or: [
+                { DeviceId: deviceId },
+                { DeviceIP: clientIP }
+            ]
+        });
+        const scannedBy = scannedUser ? `${scannedUser.UserName} (${scannedUser.EmployeeCode})` : `Device: ${deviceId.substring(0, 8)}`;
 
         const updateData = {
             ProductReceivedDate: new Date(),
@@ -304,15 +312,18 @@ router.put('/update-received/:id', async (req, res) => {
 // GET routes for QR code scanning (browsers make GET requests when scanning QR codes)
 router.get('/update-delivery/:id', async (req, res) => {
     const { quantity } = req.query;
-    const clientIP = req.ip ||
-                    req.connection.remoteAddress ||
-                    req.socket.remoteAddress ||
-                    (req.connection.socket ? req.connection.socket.remoteAddress : null);
+    const clientIP = getRealIP(req);
 
     try {
         // Find user by IP
-        const scannedUser = await users.findOne({ DeviceIP: clientIP });
-        const scannedBy = scannedUser ? `${scannedUser.UserName} (${scannedUser.EmployeeCode})` : `IP: ${clientIP}`;
+        const deviceId = generateDeviceId(req);
+        const scannedUser = await users.findOne({ 
+            $or: [
+                { DeviceId: deviceId },
+                { DeviceIP: clientIP }
+            ]
+        });
+        const scannedBy = scannedUser ? `${scannedUser.UserName} (${scannedUser.EmployeeCode})` : `Device: ${deviceId.substring(0, 8)}`;
 
         const updateData = {
             ProductDeliveryDate: new Date(),
@@ -446,15 +457,18 @@ router.get('/update-delivery/:id', async (req, res) => {
 
 router.get('/update-received/:id', async (req, res) => {
     const { quantity } = req.query;
-    const clientIP = req.ip ||
-                    req.connection.remoteAddress ||
-                    req.socket.remoteAddress ||
-                    (req.connection.socket ? req.connection.socket.remoteAddress : null);
+    const clientIP = getRealIP(req);
 
     try {
         // Find user by IP
-        const scannedUser = await users.findOne({ DeviceIP: clientIP });
-        const scannedBy = scannedUser ? `${scannedUser.UserName} (${scannedUser.EmployeeCode})` : `IP: ${clientIP}`;
+        const deviceId = generateDeviceId(req);
+        const scannedUser = await users.findOne({ 
+            $or: [
+                { DeviceId: deviceId },
+                { DeviceIP: clientIP }
+            ]
+        });
+        const scannedBy = scannedUser ? `${scannedUser.UserName} (${scannedUser.EmployeeCode})` : `Device: ${deviceId.substring(0, 8)}`;
 
         const updateData = {
             ProductReceivedDate: new Date(),
@@ -718,10 +732,7 @@ router.delete('/deleteuser/:id', async (req, res) => {
 
 // Update user IP via QR scan
 router.put('/update-user-ip/:id', async (req, res) => {
-    const clientIP = req.ip ||
-                    req.connection.remoteAddress ||
-                    req.socket.remoteAddress ||
-                    (req.connection.socket ? req.connection.socket.remoteAddress : null);
+    const clientIP = getRealIP(req);
 
     try {
         // Check if another user already uses this IP
@@ -766,10 +777,7 @@ router.put('/update-user-ip/:id', async (req, res) => {
 
 // GET route for QR IP capture - returns HTML page
 router.get('/capture-user-ip/:id', async (req, res) => {
-    const clientIP = req.ip ||
-                    req.connection.remoteAddress ||
-                    req.socket.remoteAddress ||
-                    (req.connection.socket ? req.connection.socket.remoteAddress : null);
+    const clientIP = getRealIP(req);
 
     try {
         // Check if another user already uses this IP
@@ -960,6 +968,205 @@ router.get('/', async (req, res) => {
     res.status(201).json({
         name: "Phong"
     });
+})
+
+router.get('/debug-ip', async (req, res) => {
+    const clientInfo = getClientInfo(req);
+    res.status(200).json({
+        message: 'IP Debug Information',
+        clientInfo,
+        detectedIP: getRealIP(req),
+        language: req.language
+    });
+})
+
+router.get('/my-ip', async (req, res) => {
+    const realIP = getRealIP(req);
+    const deviceInfo = getDeviceInfo(req);
+    
+    res.status(200).send(`
+        <html>
+            <head>
+                <title>Device Information</title>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                    body {
+                        font-family: Arial, sans-serif;
+                        text-align: center;
+                        padding: 20px;
+                        background-color: #f8f9fa;
+                    }
+                    .container {
+                        background: white;
+                        padding: 30px;
+                        border-radius: 10px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                        max-width: 500px;
+                        margin: 0 auto;
+                    }
+                    .device-id {
+                        font-size: 20px;
+                        font-weight: bold;
+                        color: #28a745;
+                        margin: 20px 0;
+                        padding: 15px;
+                        background-color: #d4edda;
+                        border-radius: 5px;
+                        font-family: monospace;
+                        word-break: break-all;
+                    }
+                    .ip-display {
+                        font-size: 18px;
+                        font-weight: bold;
+                        color: #007bff;
+                        margin: 15px 0;
+                        padding: 12px;
+                        background-color: #e9ecef;
+                        border-radius: 5px;
+                        font-family: monospace;
+                    }
+                    .info {
+                        font-size: 14px;
+                        color: #666;
+                        margin-top: 20px;
+                        text-align: left;
+                    }
+                    .device-info {
+                        background-color: #f8f9fa;
+                        padding: 15px;
+                        border-radius: 5px;
+                        margin: 15px 0;
+                        text-align: left;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h2>📱 Device Information</h2>
+                    
+                    <div class="device-id">
+                        <strong>Device ID:</strong><br>
+                        ${deviceInfo.deviceId}
+                    </div>
+                    
+                    <div class="ip-display">
+                        <strong>IP Address:</strong> ${realIP}
+                    </div>
+                    
+                    <div class="device-info">
+                        <strong>Browser:</strong> ${deviceInfo.browser}<br>
+                        <strong>OS:</strong> ${deviceInfo.os}<br>
+                        <strong>Timestamp:</strong> ${deviceInfo.timestamp.toLocaleString()}
+                    </div>
+                    
+                    <div class="info">
+                        <strong>Headers received:</strong><br>
+                        X-Forwarded-For: ${req.headers['x-forwarded-for'] || 'Not set'}<br>
+                        X-Real-IP: ${req.headers['x-real-ip'] || 'Not set'}<br>
+                        X-Client-IP: ${req.headers['x-client-ip'] || 'Not set'}<br><br>
+                        
+                        <strong>Device ID</strong> is generated from IP + User Agent + Browser settings.<br>
+                        This ensures each device has a unique identifier.
+                    </div>
+                </div>
+            </body>
+        </html>
+    `);
+})
+
+router.get('/register-device-form', async (req, res) => {
+    try {
+        const deviceInfo = getDeviceInfo(req);
+        const html = generateHTML(req.language, 'deviceRegistrationForm', deviceInfo);
+        res.status(200).send(html);
+    } catch (error) {
+        console.error('Error generating device registration form:', error);
+        const errorHtml = generateHTML(req.language, 'errorPage', {
+            message: req.t('error.serverError')
+        });
+        res.status(500).send(errorHtml);
+    }
+})
+
+router.post('/register-device', async (req, res) => {
+    try {
+        const deviceInfo = getDeviceInfo(req);
+        const { userName, employeeCode } = req.body;
+        
+        if (!userName || !employeeCode) {
+            return res.status(400).json({
+                message: req.t('validation.allFieldsRequired'),
+                language: req.language
+            });
+        }
+        
+        const existingUser = await users.findOne({
+            $or: [
+                { EmployeeCode: employeeCode },
+                { DeviceId: deviceInfo.deviceId }
+            ]
+        });
+        
+        if (existingUser) {
+            if (existingUser.EmployeeCode === employeeCode) {
+                existingUser.DeviceId = deviceInfo.deviceId;
+                existingUser.DeviceIP = deviceInfo.ip;
+                existingUser.DeviceInfo = {
+                    browser: deviceInfo.browser,
+                    os: deviceInfo.os,
+                    userAgent: deviceInfo.userAgent,
+                    lastSeen: new Date()
+                };
+                existingUser.UpdatedDate = new Date();
+                existingUser.LastLoginDate = new Date();
+                
+                await existingUser.save();
+                
+                return res.status(200).json({
+                    message: req.t('success.userUpdated'),
+                    user: existingUser,
+                    deviceInfo,
+                    language: req.language
+                });
+            } else {
+                return res.status(422).json({
+                    message: req.t('error.duplicateEntry'),
+                    language: req.language
+                });
+            }
+        }
+        
+        const newUser = new users({
+            UserName: userName,
+            EmployeeCode: employeeCode,
+            DeviceId: deviceInfo.deviceId,
+            DeviceIP: deviceInfo.ip,
+            DeviceInfo: {
+                browser: deviceInfo.browser,
+                os: deviceInfo.os,
+                userAgent: deviceInfo.userAgent,
+                lastSeen: new Date()
+            }
+        });
+        
+        await newUser.save();
+        
+        res.status(201).json({
+            message: req.t('success.userCreated'),
+            user: newUser,
+            deviceInfo,
+            language: req.language
+        });
+        
+    } catch (error) {
+        console.error('Error registering device:', error);
+        res.status(500).json({
+            message: req.t('error.serverError'),
+            error: error.message,
+            language: req.language
+        });
+    }
 })
 
 
