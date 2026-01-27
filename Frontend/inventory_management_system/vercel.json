@@ -1,8 +1,8 @@
 {
   "framework": "create-react-app",
-  "buildCommand": "npm run build:vercel",
+  "buildCommand": "yarn build:vercel",
   "outputDirectory": "build",
-  "installCommand": "npm install",
+  "installCommand": "yarn install",
   "env": {
     "REACT_APP_USE_PRODUCTION": "true"
   },
