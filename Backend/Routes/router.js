@@ -9,7 +9,16 @@ const { validateWorkflowTiming, getNextWorkflowStep, updateWorkflowStatus } = re
 const { WorkflowConfig } = require('../Models/WorkflowConfig');
 const crypto = require('crypto');
 
-const isAutoFlow = (req) => String(req.query.auto || '') === '1';
+// Auto-flow helper:
+// - auto=1  -> luôn bật auto
+// - auto=0  -> tắt auto
+// - không truyền auto -> mặc định BẬT auto (phù hợp quét QR ngoài hiện trường)
+const isAutoFlow = (req) => {
+    const q = String(req.query.auto || '');
+    if (q === '1') return true;
+    if (q === '0') return false;
+    return true;
+};
 
 const generateProductCode = () => {
     // Example: P + 10 hex chars => 11 chars (easy to print/scan)

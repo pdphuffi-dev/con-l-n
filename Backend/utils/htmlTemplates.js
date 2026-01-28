@@ -1339,21 +1339,21 @@ const generateHTML = (language, templateType, data = {}) => {
                   unitElement.textContent = secondsLabel;
                   countdownElement.className = 'countdown';
                   if (autoRedirect && nextUrl) {
-                    // Some mobile QR browsers can be picky about navigation timing;
-                    // use assign + a tiny delay as a fallback.
-                    titleText.textContent = '${translate('workflow.autoNextHint', 'Hết thời gian, hệ thống sẽ tự chuyển sang bước tiếp theo.')}';
+                    // Requirement: when time reaches 0, reload to re-check and continue.
+                    // Using replace(nextUrl) works as "reload" when nextUrl is the same step URL.
+                    titleText.textContent = '${translate('workflow.autoNextHint', 'Hết thời gian, hệ thống sẽ tự tải lại để tiếp tục bước tiếp theo.')}';
                     try {
-                      window.location.assign(nextUrl);
+                      window.location.replace(nextUrl);
                     } catch (e) {
                       window.location.href = nextUrl;
                     }
                     setTimeout(() => {
                       try {
-                        window.location.assign(nextUrl);
+                        window.location.replace(nextUrl);
                       } catch (e) {
                         window.location.href = nextUrl;
                       }
-                    }, 250);
+                    }, 350);
                   } else {
                     titleText.textContent = doneText;
                   }
