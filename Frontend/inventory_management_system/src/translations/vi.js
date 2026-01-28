@@ -9,7 +9,7 @@ export const vi = {
   },
 
   main: {
-    title: "NHẬT KÍ ĐI ĐÁNH BÓNG + NHIỆT LUYỆN",
+    title: "NHẬT KÍ GIA CÔNG NM2",
     addNewProduct: "Thêm mặt hàng mới",
     refresh: "Làm mới",
     qrInstructions: "Hướng dẫn quét QR: Chỉ sử dụng camera điện thoại để quét QR code và cập nhật ngày giao/nhận tự động. Quy trình: Ngày giao → Ngày nhận → Hoàn thành.",
@@ -21,8 +21,13 @@ export const vi = {
     createdDate: "Ngày tạo",
     productName: "Tên hàng",
     lotNumber: "Số hiệu lố",
-    deliveryInfo: "Ngày giao đánh bóng / Số lượng",
+    deliveryInfo: "Ngày giao đánh bóng  / Số lượng",
     receivedInfo: "Ngày nhận đánh bóng / Số lượng",
+    Assembling: "Đang lắp ráp / Số lượng",
+    assembled: "Đã lắp ráp xong / Số lượng",
+    packing: "Đang đóng gói / Số lượng",
+    Packed: "Đã đóng gói xong / Số lượng",
+    Received: "Nhập kho / Số lượng",
     updatedDate: "Ngày cập nhật",
     qrCode: "QR Code",
     notScanned: "Chưa quét",
@@ -33,7 +38,7 @@ export const vi = {
 
   form: {
     productName: "Tên sản phẩm",
-    lotNumber: "Số hiệu lô",
+    lotNumber: "Số hiệu lố",
     quantity: "Số lượng",
     deliveryQuantity: "Số lượng giao",
     receivedQuantity: "Số lượng nhận",

@@ -179,6 +179,11 @@ export default function Products() {
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.lotNumber')}</th>
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.deliveryInfo')}</th>
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.receivedInfo')}</th>
+                                <th scope="col" style={{ textAlign: 'center' }}>{t('table.Assembling')}</th>
+                                <th scope="col" style={{ textAlign: 'center' }}>{t('table.assembled')}</th>
+                                <th scope="col" style={{ textAlign: 'center' }}>{t('table.packing')}</th>
+                                <th scope="col" style={{ textAlign: 'center' }}>{t('table.Packed')}</th>
+                                <th scope="col" style={{ textAlign: 'center' }}>{t('table.Received')}</th>
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.updatedDate')}</th>
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.qrCode')}</th>
                             </tr>

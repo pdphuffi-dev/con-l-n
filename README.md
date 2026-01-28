@@ -55,13 +55,13 @@ For Docker users, see [README_DOCKER.md](README_DOCKER.md)
 ### 4. In one terminal run these commands (For Backend / Server):
 
 - cd Backend
-- npm run server
+- yarn run server
 
 ### 5. In the other terminal run these commands (For Frontend / Client):
 
 - cd Frontend
 - cd inventory_management_system
-- npm start
+- yarn start
   ![image](https://github.com/mhy20401/Inventory-Management-System-MERN-CRUD-Project/assets/99351091/93fa528b-bc88-49c2-9922-19b317336b7c)
 
 ## Output:
