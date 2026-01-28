@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import io from 'socket.io-client'
 import { NETWORK_IP, API_PORT, API_BASE_URL, WS_URL } from '../config'
@@ -73,6 +73,8 @@ export default function Products() {
 
     const [productData, setProductData] = useState([]);
     const [socket, setSocket] = useState(null);
+    const socketRef = useRef(null);
+    const isMountedRef = useRef(false);
     const [receivingProduct, setReceivingProduct] = useState(null);
     const [receivedQuantity, setReceivedQuantity] = useState("");
     const [showCountdown, setShowCountdown] = useState(false);
@@ -80,11 +82,46 @@ export default function Products() {
     const [nextStep, setNextStep] = useState('');
 
     useEffect(() => {
+        isMountedRef.current = true;
         getProducts();
 
         // Connect to Socket.IO server
-        const newSocket = io(WS_URL);
+        const newSocket = io(WS_URL, {
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 500,
+            reconnectionDelayMax: 5000,
+            timeout: 10000,
+        });
         setSocket(newSocket);
+        socketRef.current = newSocket;
+
+        const safeGetProducts = () => {
+            try {
+                getProducts();
+            } catch (e) {
+                // ignore
+            }
+        };
+
+        newSocket.on('connect', () => {
+            console.log('✅ Socket connected:', newSocket.id, '->', WS_URL);
+        });
+
+        newSocket.on('disconnect', (reason) => {
+            console.log('⚠️ Socket disconnected:', reason);
+        });
+
+        newSocket.on('connect_error', (err) => {
+            console.log('❌ Socket connect_error:', err?.message || err);
+        });
+
+        newSocket.on('reconnect', (attempt) => {
+            console.log('🔄 Socket reconnected, attempt:', attempt);
+            // After reconnect, refresh once to avoid stale UI
+            safeGetProducts();
+        });
 
         // Listen for product updates
         newSocket.on('productUpdated', (data) => {
@@ -92,12 +129,25 @@ export default function Products() {
             console.log('📦 Product data:', data.product);
             console.log('🏷️ Update type:', data.type);
 
-            // Refresh product list when any product is updated
             try {
-                getProducts();
+                const updatedProduct = data?.product;
+
+                // Update UI immediately if backend provided the product.
+                // This avoids cases where refresh API is slow/fails intermittently.
+                if (updatedProduct && updatedProduct._id) {
+                    setProductData((prev) => {
+                        const idx = prev.findIndex((p) => p?._id === updatedProduct._id);
+                        if (idx === -1) return prev; // Not in current list; keep as-is
+                        const next = prev.slice();
+                        next[idx] = { ...next[idx], ...updatedProduct };
+                        return next;
+                    });
+                } else {
+                    // Fallback refresh
+                    safeGetProducts();
+                }
 
                 // Use product data from socket event to show countdown immediately
-                const updatedProduct = data.product;
                 console.log('🔍 Checking countdown conditions:', {
                     hasProduct: !!updatedProduct,
                     updateType: data.type,
@@ -117,9 +167,16 @@ export default function Products() {
                 }
             } catch (error) {
                 console.error('❌ Error refreshing product list:', error);
-                getProducts();
+                safeGetProducts();
             }
         });
+
+        // Fallback: if socket is flaky, refresh periodically.
+        // (Lightweight and prevents "sometimes not updating" complaints.)
+        const refreshInterval = setInterval(() => {
+            // Only refresh if component still mounted
+            if (isMountedRef.current) safeGetProducts();
+        }, 15000);
 
         // Listen for language changes to refresh data
         const handleLanguageChange = () => {
@@ -130,7 +187,14 @@ export default function Products() {
 
         // Cleanup on unmount
         return () => {
-            newSocket.disconnect();
+            isMountedRef.current = false;
+            clearInterval(refreshInterval);
+            try {
+                newSocket.removeAllListeners();
+                newSocket.disconnect();
+            } catch (e) {
+                // ignore
+            }
             window.removeEventListener('languageChanged', handleLanguageChange);
         };
     }, []);
@@ -436,7 +500,7 @@ export default function Products() {
             </div>
 
             {/* Countdown Timer Modal */}
-            {showCountdown && countdownProduct && (
+            {/* {showCountdown && countdownProduct && (
                 <CountdownTimer
                     duration={60}
                     onComplete={handleCountdownComplete}
@@ -444,7 +508,7 @@ export default function Products() {
                     label={nextStep}
                     buttonText="Bỏ qua đếm ngược"
                 />
-            )}
+            )} */}
 
         </>
     )
