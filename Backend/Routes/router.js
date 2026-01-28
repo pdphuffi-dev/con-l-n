@@ -397,28 +397,68 @@ router.put('/update-delivery/:id', async (req, res) => {
 
 router.get('/create-product-form', async (req, res) => {
     try {
+        // Require device/user registration before allowing product creation via scan
+        const clientIP = getRealIP(req);
+        const deviceId = generateDeviceId(req);
+        const scannedUser = await users.findOne({
+            $or: [
+                { DeviceId: deviceId },
+                { DeviceIP: clientIP }
+            ]
+        });
+
+        if (!scannedUser) {
+            const deviceInfo = getDeviceInfo(req);
+            const html = generateHTML(req.language, 'userRegistrationRequired', {
+                deviceInfo,
+                redirectUrl: `/create-product-form?lang=${req.language}`,
+                actionType: 'createProduct'
+            });
+            return res.status(200).send(html);
+        }
+
         const html = generateHTML(req.language, 'createProductForm', {});
-        res.status(200).send(html);
+        return res.status(200).send(html);
     } catch (error) {
         console.error('Error generating create product form:', error);
         const errorHtml = generateHTML(req.language, 'errorPage', {
             message: req.t('error.serverError')
         });
-        res.status(500).send(errorHtml);
+        return res.status(500).send(errorHtml);
     }
 });
 
 // Quantity-only form (creates N products + N stable QRs)
 router.get('/create-product-quantity-form', async (req, res) => {
     try {
+        // Require device/user registration before allowing product creation via scan
+        const clientIP = getRealIP(req);
+        const deviceId = generateDeviceId(req);
+        const scannedUser = await users.findOne({
+            $or: [
+                { DeviceId: deviceId },
+                { DeviceIP: clientIP }
+            ]
+        });
+
+        if (!scannedUser) {
+            const deviceInfo = getDeviceInfo(req);
+            const html = generateHTML(req.language, 'userRegistrationRequired', {
+                deviceInfo,
+                redirectUrl: `/create-product-quantity-form?lang=${req.language}`,
+                actionType: 'createProduct'
+            });
+            return res.status(200).send(html);
+        }
+
         const html = generateHTML(req.language, 'createProductQuantityOnlyForm', {});
-        res.status(200).send(html);
+        return res.status(200).send(html);
     } catch (error) {
         console.error('Error generating create product quantity form:', error);
         const errorHtml = generateHTML(req.language, 'errorPage', {
             message: req.t('error.serverError')
         });
-        res.status(500).send(errorHtml);
+        return res.status(500).send(errorHtml);
     }
 });
 
