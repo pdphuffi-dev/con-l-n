@@ -270,6 +270,71 @@ const generateHTML = (language, templateType, data = {}) => {
                 font-size: 24px;
                 margin-bottom: 20px;
               }
+              .hint {
+                margin-top: 6px;
+                font-size: 12px;
+                color: #6c757d;
+              }
+              .qr-section {
+                margin-top: 18px;
+                text-align: left;
+              }
+              .qr-actions {
+                display: flex;
+                gap: 10px;
+                justify-content: center;
+                flex-wrap: wrap;
+                margin: 12px 0 6px;
+              }
+              .qr-actions .button {
+                width: auto;
+                padding: 10px 14px;
+                font-size: 14px;
+              }
+              .qr-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+                gap: 12px;
+                margin-top: 10px;
+              }
+              .qr-item {
+                border: 1px solid #dee2e6;
+                background: #fff;
+                border-radius: 10px;
+                padding: 12px;
+                text-align: center;
+              }
+              .qr-item img {
+                width: 160px;
+                height: 160px;
+                border-radius: 8px;
+                border: 2px solid #007bff;
+                user-select: none;
+                pointer-events: none;
+              }
+              .qr-label {
+                font-size: 12px;
+                margin-top: 10px;
+                color: #343a40;
+                line-height: 1.3;
+                word-break: break-word;
+              }
+              .qr-link {
+                display: inline-block;
+                margin-top: 6px;
+                font-size: 12px;
+                color: #007bff;
+                text-decoration: none;
+              }
+              .qr-link:hover {
+                text-decoration: underline;
+              }
+              @media print {
+                body { background: #fff; padding: 0; }
+                .container { box-shadow: none; border: none; }
+                form, .logo, #message, .qr-actions { display: none !important; }
+                .qr-item { break-inside: avoid; }
+              }
             </style>
           </head>
           <body>
@@ -285,20 +350,30 @@ const generateHTML = (language, templateType, data = {}) => {
                   <label for="productBarcode">${translate('form.lotNumber')}:</label>
                   <input type="text" id="productBarcode" name="productBarcode" required placeholder="${translate('form.lotNumber')}" maxlength="20">
                 </div>
+                <div class="form-group">
+                  <label for="qrQuantity">${translate('form.qrQuantity', 'Số lượng sản phẩm cần tạo')}:</label>
+                  <input type="number" id="qrQuantity" name="qrQuantity" required min="1" max="20" value="1" placeholder="${translate('form.qrQuantity', 'Số lượng sản phẩm cần tạo')}">
+                  <div class="hint">${translate('form.qrQuantityHint', 'Nhập từ 1 đến 20. Sau khi tạo sẽ hiển thị danh sách QR tương ứng.')}</div>
+                </div>
                 <button type="submit" class="button" id="submitBtn">${translate('form.submit')}</button>
               </form>
               <div id="message"></div>
+              <div id="qrList" class="qr-section"></div>
             </div>
 
             <script>
               const form = document.getElementById('createProductForm');
               const submitBtn = document.getElementById('submitBtn');
               const messageDiv = document.getElementById('message');
+              const qrListDiv = document.getElementById('qrList');
 
               form.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const productName = document.getElementById('productName').value.trim();
                 const productBarcode = document.getElementById('productBarcode').value.trim();
+                const qrQuantityRaw = document.getElementById('qrQuantity').value;
+                const qrQuantity = parseInt(qrQuantityRaw, 10);
+                qrListDiv.innerHTML = '';
 
                 if (!productName || !productBarcode) {
                   messageDiv.innerHTML = '<div class="error">${translate('validation.allFieldsRequired')}</div>';
@@ -307,6 +382,11 @@ const generateHTML = (language, templateType, data = {}) => {
 
                 if (productBarcode.length > 20) {
                   messageDiv.innerHTML = '<div class="error">${translate('validation.lotNumberTooLong')}</div>';
+                  return;
+                }
+
+                if (!Number.isFinite(qrQuantity) || qrQuantity < 1 || qrQuantity > 20) {
+                  messageDiv.innerHTML = '<div class="error">${translate('validation.qrQuantityRange', 'Số lượng phải từ 1 đến 20')}</div>';
                   return;
                 }
 
@@ -323,7 +403,8 @@ const generateHTML = (language, templateType, data = {}) => {
                     },
                     body: JSON.stringify({
                       ProductName: productName,
-                      ProductBarcode: productBarcode
+                      ProductBarcode: productBarcode,
+                      qrQuantity: qrQuantity
                     })
                   });
 
@@ -332,10 +413,197 @@ const generateHTML = (language, templateType, data = {}) => {
                   if (response.status === 201) {
                     const successMessage = data.message || '${translate('success.productCreated')}';
                     messageDiv.innerHTML = '<div style="color: #28a745; font-size: 16px; margin-top: 15px;">✅ ' + successMessage + '</div>';
+
+                    const createdProducts = Array.isArray(data.data) ? data.data : [];
+                    const lang = '${language}';
+                    const baseUrl = window.location.origin;
+                    const size = 160;
+
+                    if (createdProducts.length > 0) {
+                      const itemsHtml = createdProducts.map((p, idx) => {
+                        // Stable QR: always scan the same code for this product
+                        const stepUrl = baseUrl + '/scan-product/' + p._id + '?lang=' + encodeURIComponent(lang);
+                        const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size + '&data=' + encodeURIComponent(stepUrl);
+                        const label = (p.ProductBarcode ? p.ProductBarcode : '') + (p.qrCodeIndex ? (' (QR ' + p.qrCodeIndex + '/' + (p.totalQRCodes || createdProducts.length) + ')') : (' #' + (idx + 1)));
+
+                        return (
+                          '<div class="qr-item">' +
+                            '<img src="' + qrUrl + '" alt="QR Code" draggable="false" />' +
+                            '<div class="qr-label"><strong>' + (p.ProductName || '') + '</strong><br>' + label + '</div>' +
+                            '<a class="qr-link" href="' + stepUrl + '" target="_blank" rel="noopener noreferrer">${translate('common.open', 'Mở link')}</a>' +
+                          '</div>'
+                        );
+                      }).join('');
+
+                      qrListDiv.innerHTML =
+                        '<div style="font-weight: 600; margin: 8px 0 6px;">${translate('form.qrListTitle', 'Danh sách QR đã tạo')}</div>' +
+                        '<div class="qr-actions">' +
+                          '<button type="button" class="button" onclick="window.print()">${translate('common.print', 'In QR')}</button>' +
+                          '<button type="button" class="button" style="background:#6c757d" onclick="window.close()">${translate('common.close', 'Đóng')}</button>' +
+                        '</div>' +
+                        '<div class="qr-grid">' + itemsHtml + '</div>';
+                    } else {
+                      qrListDiv.innerHTML = '<div class="error">${translate('error.serverError', 'Không có dữ liệu QR trả về')}</div>';
+                    }
+
+                    // Reset form for next use but keep QR list visible
                     form.reset();
-                    setTimeout(() => {
-                      window.close();
-                    }, 2000);
+                    document.getElementById('qrQuantity').value = 1;
+                  } else if (response.status === 422) {
+                    const errorMessage = data.message || '${translate('error.duplicateEntry')}';
+                    messageDiv.innerHTML = '<div class="error">' + errorMessage + '</div>';
+                  } else {
+                    const errorMessage = data.message || '${translate('error.serverError')}';
+                    messageDiv.innerHTML = '<div class="error">' + errorMessage + '</div>';
+                  }
+                } catch (error) {
+                  messageDiv.innerHTML = '<div class="error">${translate('error.serverError')}</div>';
+                } finally {
+                  submitBtn.disabled = false;
+                  submitBtn.textContent = '${translate('form.submit')}';
+                }
+              });
+            </script>
+          </body>
+        </html>
+      `;
+
+    case 'createProductQuantityOnlyForm':
+      return `
+        <html>
+          <head>
+            <title>${translate('main.addNewProduct')}</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            ${baseStyles}
+            <style>
+              body { background-color: #eff4ef; }
+              .logo { color: #007bff; font-size: 24px; margin-bottom: 20px; }
+              .hint { margin-top: 6px; font-size: 12px; color: #6c757d; }
+              .qr-section { margin-top: 18px; text-align: left; }
+              .qr-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin: 12px 0 6px; }
+              .qr-actions .button { width: auto; padding: 10px 14px; font-size: 14px; }
+              .qr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 10px; }
+              .qr-item { border: 1px solid #dee2e6; background: #fff; border-radius: 10px; padding: 12px; text-align: center; }
+              .qr-item img { width: 160px; height: 160px; border-radius: 8px; border: 2px solid #007bff; user-select: none; pointer-events: none; }
+              .qr-label { font-size: 12px; margin-top: 10px; color: #343a40; line-height: 1.3; word-break: break-word; }
+              .qr-link { display: inline-block; margin-top: 6px; font-size: 12px; color: #007bff; text-decoration: none; }
+              .qr-link:hover { text-decoration: underline; }
+              @media print {
+                body { background: #fff; padding: 0; }
+                .container { box-shadow: none; border: none; }
+                form, .logo, #message, .qr-actions { display: none !important; }
+                .qr-item { break-inside: avoid; }
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="logo">📦</div>
+              <h2>${translate('main.addNewProduct')}</h2>
+              <form id="createProductQuantityOnlyForm">
+                <div class="form-group">
+                  <label for="qrQuantity">${translate('form.qrQuantity', 'Số lượng sản phẩm cần tạo')}:</label>
+                  <input type="number" id="qrQuantity" name="qrQuantity" required min="1" max="200" value="1" placeholder="${translate('form.qrQuantity', 'Số lượng sản phẩm cần tạo')}">
+                  <div class="hint">${translate('form.qrQuantityHintStable', 'Nhập số lượng. Hệ thống sẽ tạo ra N sản phẩm và N mã QR cố định (mỗi mã đi theo sản phẩm suốt quy trình).')}</div>
+                </div>
+                <button type="submit" class="button" id="submitBtn">${translate('form.submit')}</button>
+              </form>
+              <div id="message"></div>
+              <div id="qrList" class="qr-section"></div>
+            </div>
+
+            <script>
+              const form = document.getElementById('createProductQuantityOnlyForm');
+              const submitBtn = document.getElementById('submitBtn');
+              const messageDiv = document.getElementById('message');
+              const qrListDiv = document.getElementById('qrList');
+
+              function pad2(n) { return String(n).padStart(2, '0'); }
+              function generateBatchBarcode() {
+                const d = new Date();
+                const stamp = String(d.getFullYear()).slice(2) +
+                  pad2(d.getMonth() + 1) +
+                  pad2(d.getDate()) +
+                  pad2(d.getHours()) +
+                  pad2(d.getMinutes()) +
+                  pad2(d.getSeconds());
+                const rand = Math.floor(Math.random() * 90) + 10; // 2 digits
+                return 'B' + stamp + rand; // short + unique enough for UI
+              }
+
+              form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const qrQuantityRaw = document.getElementById('qrQuantity').value;
+                const qrQuantity = parseInt(qrQuantityRaw, 10);
+                qrListDiv.innerHTML = '';
+
+                if (!Number.isFinite(qrQuantity) || qrQuantity < 1) {
+                  messageDiv.innerHTML = '<div class="error">${translate('validation.quantityRequired')}</div>';
+                  return;
+                }
+
+                // Reuse existing /insertproduct logic (auto-generate base product fields)
+                const productName = '${translate('form.autoProductName', 'Sản phẩm')}';
+                const productBarcode = generateBatchBarcode();
+
+                submitBtn.disabled = true;
+                submitBtn.textContent = '${translate('common.loading')}';
+
+                try {
+                  const response = await fetch('/insertproduct', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Accept-Language': '${language}',
+                      'X-Language': '${language}'
+                    },
+                    body: JSON.stringify({
+                      ProductName: productName,
+                      ProductBarcode: productBarcode,
+                      qrQuantity: qrQuantity
+                    })
+                  });
+
+                  const data = await response.json();
+
+                  if (response.status === 201) {
+                    const successMessage = data.message || '${translate('success.productCreated')}';
+                    messageDiv.innerHTML = '<div style="color: #28a745; font-size: 16px; margin-top: 15px;">✅ ' + successMessage + '</div>';
+
+                    const createdProducts = Array.isArray(data.data) ? data.data : [];
+                    const lang = '${language}';
+                    const baseUrl = window.location.origin;
+                    const size = 160;
+
+                    if (createdProducts.length > 0) {
+                      const itemsHtml = createdProducts.map((p, idx) => {
+                        const stableUrl = baseUrl + '/scan-product/' + p._id + '?lang=' + encodeURIComponent(lang);
+                        const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size + '&data=' + encodeURIComponent(stableUrl);
+                        const label = (p.ProductBarcode ? p.ProductBarcode : '') + (p.qrCodeIndex ? (' (QR ' + p.qrCodeIndex + '/' + (p.totalQRCodes || createdProducts.length) + ')') : (' #' + (idx + 1)));
+
+                        return (
+                          '<div class="qr-item">' +
+                            '<img src="' + qrUrl + '" alt="QR Code" draggable="false" />' +
+                            '<div class="qr-label"><strong>' + (p.ProductName || '') + '</strong><br>' + label + '</div>' +
+                            '<a class="qr-link" href="' + stableUrl + '" target="_blank" rel="noopener noreferrer">${translate('common.open', 'Mở link')}</a>' +
+                          '</div>'
+                        );
+                      }).join('');
+
+                      qrListDiv.innerHTML =
+                        '<div style="font-weight: 600; margin: 8px 0 6px;">${translate('form.qrListTitle', 'Danh sách QR đã tạo')}</div>' +
+                        '<div class="qr-actions">' +
+                          '<button type="button" class="button" onclick="window.print()">${translate('common.print', 'In QR')}</button>' +
+                          '<button type="button" class="button" style="background:#6c757d" onclick="window.close()">${translate('common.close', 'Đóng')}</button>' +
+                        '</div>' +
+                        '<div class="qr-grid">' + itemsHtml + '</div>';
+                    } else {
+                      qrListDiv.innerHTML = '<div class="error">${translate('error.serverError', 'Không có dữ liệu QR trả về')}</div>';
+                    }
+
+                    form.reset();
+                    document.getElementById('qrQuantity').value = 1;
                   } else if (response.status === 422) {
                     const errorMessage = data.message || '${translate('error.duplicateEntry')}';
                     messageDiv.innerHTML = '<div class="error">' + errorMessage + '</div>';

@@ -267,30 +267,32 @@ export default function Products() {
                                         });
                                     };
 
-                                    // Determine QR code content based on workflow
+                                    // Stable QR code per product (never changes).
+                                    // Backend will redirect to the correct next step when scanned.
                                     const getQRContent = () => {
+                                        const stableUrl = `${API_BASE_URL}/scan-product/${element._id}?lang=${currentLanguage}`;
                                         if (!element.ProductDeliveryDate) {
                                             // Step 1: Delivery
                                             return {
-                                                url: `${API_BASE_URL}/deliver-product/${element._id}?lang=${currentLanguage}`,
+                                                url: stableUrl,
                                                 label: t('table.scanToDelivery')
                                             };
                                         } else if (!element.ProductReceivedDate) {
                                             // Step 2: Receive
                                             return {
-                                                url: `${API_BASE_URL}/receive-product/${element._id}?lang=${currentLanguage}`,
+                                                url: stableUrl,
                                                 label: t('table.scanToReceive')
                                             };
                                         } else if (!element.ProductAssemblingDate) {
                                             // Step 3: Assembling
                                             return {
-                                                url: `${API_BASE_URL}/assemble-product/${element._id}?lang=${currentLanguage}`,
+                                                url: stableUrl,
                                                 label: t('table.scanToAssemble')
                                             };
                                         } else if (!element.ProductWarehousingDate) {
                                             // Step 4: Warehousing
                                             return {
-                                                url: `${API_BASE_URL}/warehouse-product/${element._id}?lang=${currentLanguage}`,
+                                                url: stableUrl,
                                                 label: t('table.scanToWarehouse')
                                             };
                                         }

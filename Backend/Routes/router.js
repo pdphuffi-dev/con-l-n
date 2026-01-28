@@ -9,30 +9,104 @@ const { validateWorkflowTiming, getNextWorkflowStep, updateWorkflowStatus } = re
 const { WorkflowConfig } = require('../Models/WorkflowConfig');
 
 router.post("/insertproduct", async (req, res) => {
-    const { ProductName, ProductBarcode } = req.body;
+    const { ProductName, ProductBarcode, qrQuantity = 1 } = req.body;
 
     try {
-        const pre = await products.findOne({ ProductBarcode: ProductBarcode })
-        console.log(pre);
+        const MAX_QR = 200;
+        const qrCount = Math.min(Math.max(parseInt(qrQuantity, 10) || 1, 1), MAX_QR); // 1..200
+        const createdProducts = [];
 
-        if (pre) {
-            res.status(422).json({ message: req.t('error.duplicateEntry') })
+        const isQuantityOnly = !ProductName && !ProductBarcode;
+
+        // Generate compact lot number (<= ~18 chars with suffix)
+        const pad2 = (n) => String(n).padStart(2, '0');
+        const generateBaseBarcode = () => {
+            const d = new Date();
+            const stamp =
+                String(d.getFullYear()).slice(2) +
+                pad2(d.getMonth() + 1) +
+                pad2(d.getDate()) +
+                pad2(d.getHours()) +
+                pad2(d.getMinutes()) +
+                pad2(d.getSeconds());
+            const rand = Math.floor(Math.random() * 90) + 10; // 2 digits
+            return `B${stamp}${rand}`;
+        };
+
+        let baseBarcode = ProductBarcode;
+        let baseName = ProductName;
+
+        if (isQuantityOnly) {
+            baseName = req.t('form.autoProductName', 'Sản phẩm');
+            // Try to avoid collisions
+            for (let attempt = 0; attempt < 5; attempt++) {
+                const candidate = generateBaseBarcode();
+                // eslint-disable-next-line no-await-in-loop
+                const exists = await products.findOne({ ProductBarcode: candidate });
+                if (!exists) {
+                    baseBarcode = candidate;
+                    break;
+                }
+            }
+            if (!baseBarcode) {
+                return res.status(500).json({ message: req.t('error.serverError'), error: 'Failed to generate unique barcode' });
+            }
+        } else {
+            // If explicit barcode exists -> duplicate
+            const pre = await products.findOne({ ProductBarcode: baseBarcode });
+            if (pre) {
+                return res.status(422).json({ message: req.t('error.duplicateEntry') });
+            }
         }
-        else {
-            const addProduct = new products({
-                ProductName,
-                ProductBarcode,
+
+        // Create master product (QR #1)
+        const masterProduct = new products({
+            ProductName: baseName,
+            ProductBarcode: baseBarcode,
+            DeliveryScannedBy: null,
+            ReceivedScannedBy: null,
+            qrCodeIndex: 1,
+            isMasterQR: true,
+            totalQRCodes: qrCount
+        });
+
+        await masterProduct.save();
+        createdProducts.push(masterProduct);
+        console.log('Created master product:', masterProduct._id);
+
+        // Create additional QR products if needed
+        for (let i = 2; i <= qrCount; i++) {
+            const additionalBarcode = isQuantityOnly
+                ? `${baseBarcode}Q${i}` // keep it compact
+                : `${baseBarcode}-QR${i}`; // keep old behavior when user supplies lot number
+
+            const additionalProduct = new products({
+                ProductName: baseName,
+                ProductBarcode: additionalBarcode,
                 DeliveryScannedBy: null,
-                ReceivedScannedBy: null
-            })
+                ReceivedScannedBy: null,
+                parentProductId: masterProduct._id,
+                qrCodeIndex: i,
+                isMasterQR: false,
+                totalQRCodes: qrCount
+            });
 
-            await addProduct.save();
-            res.status(201).json({ message: req.t('success.productCreated'), data: addProduct })
-            console.log(addProduct)
+            // eslint-disable-next-line no-await-in-loop
+            await additionalProduct.save();
+            createdProducts.push(additionalProduct);
+            console.log(`Created additional product ${i}:`, additionalProduct._id);
         }
+
+        res.status(201).json({
+            message: req.t('success.productCreated'),
+            data: createdProducts,
+            qrCount: qrCount,
+            masterProductId: masterProduct._id
+        });
     }
     catch (err) {
-        console.log(err)
+        console.log(err);
+        res.status(500).json({ message: req.t('error.serverError'), error: err.message });
     }
 })
 
@@ -135,13 +209,19 @@ router.put('/update-delivery/:id', async (req, res) => {
     try {
         // Find user by IP
         const deviceId = generateDeviceId(req);
-        const scannedUser = await users.findOne({ 
+        const scannedUser = await users.findOne({
             $or: [
                 { DeviceId: deviceId },
                 { DeviceIP: clientIP }
             ]
         });
         const scannedBy = scannedUser ? `${scannedUser.UserName} (${scannedUser.EmployeeCode})` : `Device: ${deviceId.substring(0, 8)}`;
+
+        // Get the scanned product
+        const scannedProduct = await products.findById(req.params.id);
+        if (!scannedProduct) {
+            return res.status(404).json({ error: "Product not found" });
+        }
 
         const updateData = {
             ProductDeliveryDate: new Date(),
@@ -155,11 +235,32 @@ router.put('/update-delivery/:id', async (req, res) => {
             updateData.ShippingQuantity = parseInt(quantity);
         }
 
+        // Update the scanned product
         const updateProducts = await products.findByIdAndUpdate(
             req.params.id,
             updateData,
             { new: true }
         );
+
+        // If this product has multiple QR codes, update workflow status for related products
+        if (scannedProduct.totalQRCodes > 1) {
+            const relatedProductsQuery = scannedProduct.isMasterQR
+                ? { parentProductId: scannedProduct._id }
+                : { $or: [
+                    { _id: scannedProduct.parentProductId },
+                    { parentProductId: scannedProduct.parentProductId }
+                ]};
+
+            // Update all related products to allow them to proceed to next step
+            await products.updateMany(
+                relatedProductsQuery,
+                {
+                    WorkflowStatus: 'delivered',
+                    ProductUpdatedDate: new Date()
+                }
+            );
+        }
+
         console.log("Delivery date updated by:", scannedBy);
 
         // Emit socket event to update all connected clients
@@ -196,6 +297,59 @@ router.get('/create-product-form', async (req, res) => {
             message: req.t('error.serverError')
         });
         res.status(500).send(errorHtml);
+    }
+});
+
+// Quantity-only form (creates N products + N stable QRs)
+router.get('/create-product-quantity-form', async (req, res) => {
+    try {
+        const html = generateHTML(req.language, 'createProductQuantityOnlyForm', {});
+        res.status(200).send(html);
+    } catch (error) {
+        console.error('Error generating create product quantity form:', error);
+        const errorHtml = generateHTML(req.language, 'errorPage', {
+            message: req.t('error.serverError')
+        });
+        res.status(500).send(errorHtml);
+    }
+});
+
+// Stable QR scan endpoint: one QR per product, never changes.
+// Scanning will redirect to the appropriate next workflow step form.
+router.get('/scan-product/:id', async (req, res) => {
+    try {
+        const product = await products.findById(req.params.id);
+        if (!product) {
+            const errorHtml = generateHTML(req.language, 'errorPage', {
+                message: req.t('error.productNotFound')
+            });
+            return res.status(404).send(errorHtml);
+        }
+
+        const nextStep = getNextWorkflowStep(product);
+        if (!nextStep) {
+            const doneHtml = generateHTML(req.language, 'successPage', {
+                message: req.t('workflow.workflowCompleted', 'Quy trình đã hoàn tất')
+            });
+            return res.status(200).send(doneHtml);
+        }
+
+        const lang = req.language || 'vi';
+        const redirectMap = {
+            delivery: `/deliver-product/${req.params.id}?lang=${lang}`,
+            receive: `/receive-product/${req.params.id}?lang=${lang}`,
+            assembling: `/assemble-product/${req.params.id}?lang=${lang}`,
+            warehousing: `/warehouse-product/${req.params.id}?lang=${lang}`,
+        };
+
+        const redirectUrl = redirectMap[nextStep] || `/deliver-product/${req.params.id}?lang=${lang}`;
+        return res.redirect(302, redirectUrl);
+    } catch (error) {
+        console.error('Error scanning product:', error);
+        const errorHtml = generateHTML(req.language, 'errorPage', {
+            message: req.t('error.serverError')
+        });
+        return res.status(500).send(errorHtml);
     }
 });
 
@@ -476,13 +630,19 @@ router.put('/update-received/:id', async (req, res) => {
     try {
         // Find user by IP
         const deviceId = generateDeviceId(req);
-        const scannedUser = await users.findOne({ 
+        const scannedUser = await users.findOne({
             $or: [
                 { DeviceId: deviceId },
                 { DeviceIP: clientIP }
             ]
         });
         const scannedBy = scannedUser ? `${scannedUser.UserName} (${scannedUser.EmployeeCode})` : `Device: ${deviceId.substring(0, 8)}`;
+
+        // Get the scanned product
+        const scannedProduct = await products.findById(req.params.id);
+        if (!scannedProduct) {
+            return res.status(404).json({ error: "Product not found" });
+        }
 
         const updateData = {
             ProductReceivedDate: new Date(),
@@ -501,6 +661,26 @@ router.put('/update-received/:id', async (req, res) => {
             updateData,
             { new: true }
         );
+
+        // If this product has multiple QR codes, update workflow status for related products
+        if (scannedProduct.totalQRCodes > 1) {
+            const relatedProductsQuery = scannedProduct.isMasterQR
+                ? { parentProductId: scannedProduct._id }
+                : { $or: [
+                    { _id: scannedProduct.parentProductId },
+                    { parentProductId: scannedProduct.parentProductId }
+                ]};
+
+            // Update all related products to allow them to proceed to next step
+            await products.updateMany(
+                relatedProductsQuery,
+                {
+                    WorkflowStatus: 'received',
+                    ProductUpdatedDate: new Date()
+                }
+            );
+        }
+
         console.log("Received date updated by:", scannedBy);
 
         // Emit socket event to update all connected clients
@@ -535,7 +715,7 @@ router.get('/update-delivery/:id', async (req, res) => {
     try {
         // Find user by IP - require user to be registered
         const deviceId = generateDeviceId(req);
-        const scannedUser = await users.findOne({ 
+        const scannedUser = await users.findOne({
             $or: [
                 { DeviceId: deviceId },
                 { DeviceIP: clientIP }
@@ -590,6 +770,12 @@ router.get('/update-delivery/:id', async (req, res) => {
             `);
         }
 
+        // Get the scanned product
+        const scannedProduct = await products.findById(req.params.id);
+        if (!scannedProduct) {
+            return res.status(404).send('Product not found');
+        }
+
         const scannedBy = `${scannedUser.UserName} (${scannedUser.EmployeeCode})`;
 
         const updateData = {
@@ -609,6 +795,26 @@ router.get('/update-delivery/:id', async (req, res) => {
             updateData,
             { new: true }
         );
+
+        // If this product has multiple QR codes, update workflow status for related products
+        if (scannedProduct.totalQRCodes > 1) {
+            const relatedProductsQuery = scannedProduct.isMasterQR
+                ? { parentProductId: scannedProduct._id }
+                : { $or: [
+                    { _id: scannedProduct.parentProductId },
+                    { parentProductId: scannedProduct.parentProductId }
+                ]};
+
+            // Update all related products to allow them to proceed to next step
+            await products.updateMany(
+                relatedProductsQuery,
+                {
+                    WorkflowStatus: 'delivered',
+                    ProductUpdatedDate: new Date()
+                }
+            );
+        }
+
         console.log("Delivery date updated via QR scan by:", scannedBy);
 
         // Emit socket event to update all connected clients
@@ -729,7 +935,7 @@ router.get('/update-received/:id', async (req, res) => {
     try {
         // Find user by IP - require user to be registered
         const deviceId = generateDeviceId(req);
-        const scannedUser = await users.findOne({ 
+        const scannedUser = await users.findOne({
             $or: [
                 { DeviceId: deviceId },
                 { DeviceIP: clientIP }
@@ -784,6 +990,12 @@ router.get('/update-received/:id', async (req, res) => {
             `);
         }
 
+        // Get the scanned product
+        const scannedProduct = await products.findById(req.params.id);
+        if (!scannedProduct) {
+            return res.status(404).send('Product not found');
+        }
+
         const scannedBy = `${scannedUser.UserName} (${scannedUser.EmployeeCode})`;
 
         const updateData = {
@@ -802,6 +1014,26 @@ router.get('/update-received/:id', async (req, res) => {
             updateData,
             { new: true }
         );
+
+        // If this product has multiple QR codes, update workflow status for related products
+        if (scannedProduct.totalQRCodes > 1) {
+            const relatedProductsQuery = scannedProduct.isMasterQR
+                ? { parentProductId: scannedProduct._id }
+                : { $or: [
+                    { _id: scannedProduct.parentProductId },
+                    { parentProductId: scannedProduct.parentProductId }
+                ]};
+
+            // Update all related products to allow them to proceed to next step
+            await products.updateMany(
+                relatedProductsQuery,
+                {
+                    WorkflowStatus: 'received',
+                    ProductUpdatedDate: new Date()
+                }
+            );
+        }
+
         console.log("Received date updated via QR scan by:", scannedBy);
 
         // Emit socket event to update all connected clients
@@ -1020,11 +1252,17 @@ router.get('/update-assembling/:id', async (req, res) => {
 
         const scannedBy = `${scannedUser.UserName} (${scannedUser.EmployeeCode})`;
 
+        // Get the scanned product
+        const scannedProduct = await products.findById(req.params.id);
+        if (!scannedProduct) {
+            return res.status(404).send('Product not found');
+        }
+
         const updateData = {
             ProductAssemblingDate: new Date(),
             ProductUpdatedDate: new Date(),
             AssemblingScannedBy: scannedBy,
-            WorkflowStatus: updateWorkflowStatus({...product.toObject(), ProductAssemblingDate: new Date()})
+            WorkflowStatus: updateWorkflowStatus({...scannedProduct.toObject(), ProductAssemblingDate: new Date()})
         };
 
         // Add AssemblingQuantity if provided
@@ -1037,6 +1275,26 @@ router.get('/update-assembling/:id', async (req, res) => {
             updateData,
             { new: true }
         );
+
+        // If this product has multiple QR codes, update workflow status for related products
+        if (scannedProduct.totalQRCodes > 1) {
+            const relatedProductsQuery = scannedProduct.isMasterQR
+                ? { parentProductId: scannedProduct._id }
+                : { $or: [
+                    { _id: scannedProduct.parentProductId },
+                    { parentProductId: scannedProduct.parentProductId }
+                ]};
+
+            // Update all related products to allow them to proceed to next step
+            await products.updateMany(
+                relatedProductsQuery,
+                {
+                    WorkflowStatus: updateWorkflowStatus({...scannedProduct.toObject(), ProductAssemblingDate: new Date()}),
+                    ProductUpdatedDate: new Date()
+                }
+            );
+        }
+
         console.log("Assembling date updated via QR scan by:", scannedBy);
 
         // Emit socket event to update all connected clients
@@ -1229,6 +1487,12 @@ router.get('/update-warehousing/:id', async (req, res) => {
             `);
         }
 
+        // Get the scanned product
+        const scannedProduct = await products.findById(req.params.id);
+        if (!scannedProduct) {
+            return res.status(404).send('Product not found');
+        }
+
         const scannedBy = `${scannedUser.UserName} (${scannedUser.EmployeeCode})`;
 
         const updateData = {
@@ -1248,6 +1512,26 @@ router.get('/update-warehousing/:id', async (req, res) => {
             updateData,
             { new: true }
         );
+
+        // If this product has multiple QR codes, update workflow status for related products
+        if (scannedProduct.totalQRCodes > 1) {
+            const relatedProductsQuery = scannedProduct.isMasterQR
+                ? { parentProductId: scannedProduct._id }
+                : { $or: [
+                    { _id: scannedProduct.parentProductId },
+                    { parentProductId: scannedProduct.parentProductId }
+                ]};
+
+            // Update all related products to completed status
+            await products.updateMany(
+                relatedProductsQuery,
+                {
+                    WorkflowStatus: 'completed',
+                    ProductUpdatedDate: new Date()
+                }
+            );
+        }
+
         console.log("Warehousing date updated via QR scan by:", scannedBy);
 
         // Emit socket event to update all connected clients

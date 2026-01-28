@@ -9,6 +9,28 @@ const ProductSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
+        // Multi-QR support (one "master" + related QR items)
+        parentProductId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'Products',
+            required: false,
+            default: null,
+        },
+        qrCodeIndex: {
+            type: Number,
+            required: false,
+            default: 1,
+        },
+        isMasterQR: {
+            type: Boolean,
+            required: false,
+            default: true,
+        },
+        totalQRCodes: {
+            type: Number,
+            required: false,
+            default: 1,
+        },
         ProductCreatedDate: {
             type: Date,
             default: Date.now,
