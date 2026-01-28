@@ -438,7 +438,7 @@ export default function Products() {
             {/* Countdown Timer Modal */}
             {showCountdown && countdownProduct && (
                 <CountdownTimer
-                    duration={30}
+                    duration={60}
                     onComplete={handleCountdownComplete}
                     onSkip={handleCountdownSkip}
                     label={nextStep}

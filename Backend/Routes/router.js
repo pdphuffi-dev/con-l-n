@@ -573,6 +573,31 @@ router.get('/receive-product/:id', async (req, res) => {
             return res.status(404).send(errorHtml);
         }
 
+        // Validate workflow timing before allowing "receive"
+        const skipCountdown = req.query.skipCountdown === 'true';
+        if (!skipCountdown) {
+            const validation = await validateWorkflowTiming(product, 'receive');
+            if (!validation.isValid) {
+                // Show countdown page if time remaining is less than or equal to 1 minute
+                if (validation.remainingMinutes <= 1 && validation.remainingMinutes > 0) {
+                    const html = generateHTML(req.language, 'countdownPage', {
+                        message: `Chờ thời gian nhận hàng - ${scannedUser.UserName}`,
+                        remainingSeconds: validation.remainingSeconds,
+                        totalSeconds: validation.remainingSeconds,
+                        productName: `${product.ProductName} (${product.ProductBarcode})`,
+                        nextStep: 'Nhận hàng',
+                        minimumMinutes: String(validation.minimumMinutes || 1),
+                        nextUrl: `/receive-product/${req.params.id}?lang=${req.language}&skipCountdown=true`
+                    });
+                    return res.status(200).send(html);
+                }
+                const errorHtml = generateHTML(req.language, 'errorPage', {
+                    message: validation.message
+                });
+                return res.status(400).send(errorHtml);
+            }
+        }
+
         const html = generateHTML(req.language, 'receiveForm', {
             productName: product.ProductName,
             productBarcode: product.ProductBarcode,
@@ -637,7 +662,7 @@ router.get('/assemble-product/:id', async (req, res) => {
                         totalSeconds: validation.remainingSeconds,
                         productName: `${product.ProductName} (${product.ProductBarcode})`,
                         nextStep: 'Lắp ráp sản phẩm',
-                        minimumMinutes: '1',
+                        minimumMinutes: String(validation.minimumMinutes || 1),
                         nextUrl: `/assemble-product/${req.params.id}?lang=${req.language}&skipCountdown=true`
                     });
                     return res.status(200).send(html);
@@ -714,7 +739,7 @@ router.get('/warehouse-product/:id', async (req, res) => {
                         totalSeconds: validation.remainingSeconds,
                         productName: `${product.ProductName} (${product.ProductBarcode})`,
                         nextStep: 'Nhập kho sản phẩm',
-                        minimumMinutes: '1',
+                        minimumMinutes: String(validation.minimumMinutes || 1),
                         nextUrl: `/warehouse-product/${req.params.id}?lang=${req.language}&skipCountdown=true`
                     });
                     return res.status(200).send(html);
@@ -767,6 +792,12 @@ router.put('/update-received/:id', async (req, res) => {
         const scannedProduct = await products.findById(req.params.id);
         if (!scannedProduct) {
             return res.status(404).json({ error: "Product not found" });
+        }
+
+        // Validate workflow timing before allowing "receive"
+        const validation = await validateWorkflowTiming(scannedProduct, 'receive');
+        if (!validation.isValid) {
+            return res.status(400).json({ message: validation.message });
         }
 
         const updateData = {
@@ -1119,6 +1150,42 @@ router.get('/update-received/:id', async (req, res) => {
         const scannedProduct = await products.findById(req.params.id);
         if (!scannedProduct) {
             return res.status(404).send('Product not found');
+        }
+
+        // Validate workflow timing before allowing "receive"
+        const validation = await validateWorkflowTiming(scannedProduct, 'receive');
+        if (!validation.isValid) {
+            return res.status(400).send(`
+                <html>
+                    <head>
+                        <title>Chưa đủ thời gian</title>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <style>
+                            body {
+                                font-family: Arial, sans-serif;
+                                text-align: center;
+                                padding: 50px;
+                                background-color: #fff3cd;
+                            }
+                            .warning {
+                                color: #856404;
+                                font-size: 24px;
+                                margin-bottom: 20px;
+                            }
+                            .message {
+                                font-size: 18px;
+                                color: #333;
+                                margin-bottom: 30px;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="warning">⏰</div>
+                        <div class="message">${validation.message}</div>
+                    </body>
+                </html>
+            `);
         }
 
         const scannedBy = `${scannedUser.UserName} (${scannedUser.EmployeeCode})`;
@@ -2329,7 +2396,8 @@ router.post('/register-device', async (req, res) => {
 // Workflow configuration endpoints
 router.get('/workflow-config', async (req, res) => {
     try {
-        const configs = await WorkflowConfig.find({}).sort({ stepName: 1 });
+        // Single config place: show only global_step_delay
+        const configs = await WorkflowConfig.find({ stepName: 'global_step_delay' }).sort({ stepName: 1 });
         res.status(200).json({
             message: req.t('success.dataRetrieved'),
             data: configs,

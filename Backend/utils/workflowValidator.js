@@ -4,7 +4,7 @@ const { WorkflowConfig } = require('../Models/WorkflowConfig');
  * Validate if enough time has passed between workflow steps
  * @param {Object} product - Product document
  * @param {String} nextStep - Next step to validate
- * @returns {Object} - { isValid: boolean, message: string, remainingMinutes: number, remainingSeconds: number }
+ * @returns {Object} - { isValid: boolean, message: string, remainingMinutes: number, remainingSeconds: number, minimumMinutes: number }
  */
 const validateWorkflowTiming = async (product, nextStep) => {
     try {
@@ -29,7 +29,7 @@ const validateWorkflowTiming = async (product, nextStep) => {
                 stepDescription = 'nhập kho';
                 break;
             default:
-                return { isValid: true, message: '', remainingMinutes: 0, remainingSeconds: 0 };
+                return { isValid: true, message: '', remainingMinutes: 0, remainingSeconds: 0, minimumMinutes: 0 };
         }
 
         if (!previousStepDate) {
@@ -37,18 +37,24 @@ const validateWorkflowTiming = async (product, nextStep) => {
                 isValid: false,
                 message: `Bước trước đó chưa được hoàn thành`,
                 remainingMinutes: 0,
-                remainingSeconds: 0
+                remainingSeconds: 0,
+                minimumMinutes: 0
             };
         }
 
-        const config = await WorkflowConfig.findOne({ 
-            stepName: configStepName, 
-            isActive: true 
+        // Single place to configure: global_step_delay (fallback to legacy per-step configs)
+        const globalConfig = await WorkflowConfig.findOne({
+            stepName: 'global_step_delay',
+            isActive: true
+        });
+        const config = globalConfig || await WorkflowConfig.findOne({
+            stepName: configStepName,
+            isActive: true
         });
 
         if (!config) {
             // If no config found, allow the step
-            return { isValid: true, message: '', remainingMinutes: 0 };
+            return { isValid: true, message: '', remainingMinutes: 0, remainingSeconds: 0, minimumMinutes: 0 };
         }
 
         const now = new Date();
@@ -63,16 +69,17 @@ const validateWorkflowTiming = async (product, nextStep) => {
                 isValid: false,
                 message: `Cần chờ thêm ${remainingMinutes} phút nữa mới có thể ${stepDescription}. Thời gian tối thiểu là ${config.minimumMinutes} phút.`,
                 remainingMinutes: remainingMinutes,
-                remainingSeconds: remainingSeconds
+                remainingSeconds: remainingSeconds,
+                minimumMinutes: config.minimumMinutes
             };
         }
 
-        return { isValid: true, message: '', remainingMinutes: 0, remainingSeconds: 0 };
+        return { isValid: true, message: '', remainingMinutes: 0, remainingSeconds: 0, minimumMinutes: config.minimumMinutes };
 
     } catch (error) {
         console.error('Error validating workflow timing:', error);
         // In case of error, allow the step to proceed
-        return { isValid: true, message: '', remainingMinutes: 0, remainingSeconds: 0 };
+        return { isValid: true, message: '', remainingMinutes: 0, remainingSeconds: 0, minimumMinutes: 0 };
     }
 };
 

@@ -5,7 +5,13 @@ const WorkflowConfigSchema = new mongoose.Schema({
         type: String,
         required: true,
         unique: true,
-        enum: ['delivery_to_receive', 'receive_to_assembling', 'assembling_to_warehousing']
+        // Use ONE global config for all steps; legacy step configs are kept for compatibility.
+        enum: [
+            'global_step_delay',
+            'delivery_to_receive',
+            'receive_to_assembling',
+            'assembling_to_warehousing'
+        ]
     },
     minimumMinutes: {
         type: Number,
@@ -36,28 +42,16 @@ const WorkflowConfig = mongoose.model("WorkflowConfig", WorkflowConfigSchema);
 // Initialize default configurations
 const initializeDefaultConfig = async () => {
     try {
-        const existingConfigs = await WorkflowConfig.countDocuments();
-        if (existingConfigs === 0) {
-            const defaultConfigs = [
-                {
-                    stepName: 'delivery_to_receive',
-                    minimumMinutes: 1,
-                    description: 'Thời gian tối thiểu từ giao hàng đến nhận hàng'
-                },
-                {
-                    stepName: 'receive_to_assembling',
-                    minimumMinutes: 1,
-                    description: 'Thời gian tối thiểu từ nhận hàng đến lắp ráp'
-                },
-                {
-                    stepName: 'assembling_to_warehousing',
-                    minimumMinutes: 1,
-                    description: 'Thời gian tối thiểu từ lắp ráp đến nhập kho'
-                }
-            ];
-            
-            await WorkflowConfig.insertMany(defaultConfigs);
-            console.log('Default workflow configurations initialized');
+        // Ensure ONE global config exists (single place to configure)
+        const globalExists = await WorkflowConfig.findOne({ stepName: 'global_step_delay' });
+        if (!globalExists) {
+            await WorkflowConfig.create({
+                stepName: 'global_step_delay',
+                minimumMinutes: 1,
+                description: 'Thời gian tối thiểu giữa mỗi bước quét (áp dụng cho tất cả bước)',
+                isActive: true
+            });
+            console.log('Global workflow configuration initialized');
         }
     } catch (error) {
         console.error('Error initializing workflow config:', error);
