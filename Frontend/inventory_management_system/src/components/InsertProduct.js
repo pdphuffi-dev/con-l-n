@@ -136,14 +136,21 @@ export default function InsertProduct() {
                             <div className="row g-3">
                                 {createdProducts.map((p) => {
                                     const stableUrl = `${API_BASE_URL}/scan-product/${p._id}?lang=${currentLanguage}`;
-                                    const label = p.ProductBarcode || p._id;
+                                    const label = p.qrCodeIndex && p.totalQRCodes
+                                        ? `QR ${p.qrCodeIndex}/${p.totalQRCodes}`
+                                        : (p.ProductBarcode || p._id);
                                     return (
                                         <div className="col-12 col-sm-6 col-lg-4" key={p._id}>
                                             <div className="card h-100">
                                                 <div className="card-body text-center">
                                                     <ProductQRCode value={stableUrl} size={180} />
-                                                    <div className="small fw-semibold">{p.ProductName || t('form.autoProductName', 'Sản phẩm')}</div>
+                                                    <div className="small fw-semibold">
+                                                        {t('form.autoProductName', 'Sản phẩm mới')}
+                                                    </div>
                                                     <div className="small text-muted">{label}</div>
+                                                    <div className="small text-muted">
+                                                        {t('form.scanToSetup', 'Quét để nhập tên + số hiệu lố')}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>

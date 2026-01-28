@@ -67,7 +67,8 @@ router.post("/insertproduct", async (req, res) => {
             ReceivedScannedBy: null,
             qrCodeIndex: 1,
             isMasterQR: true,
-            totalQRCodes: qrCount
+            totalQRCodes: qrCount,
+            needsSetup: isQuantityOnly
         });
 
         await masterProduct.save();
@@ -88,7 +89,8 @@ router.post("/insertproduct", async (req, res) => {
                 parentProductId: masterProduct._id,
                 qrCodeIndex: i,
                 isMasterQR: false,
-                totalQRCodes: qrCount
+                totalQRCodes: qrCount,
+                needsSetup: isQuantityOnly
             });
 
             // eslint-disable-next-line no-await-in-loop
@@ -314,6 +316,123 @@ router.get('/create-product-quantity-form', async (req, res) => {
     }
 });
 
+// Setup product info after creating via quantity-only (scan QR -> fill name + lot number)
+router.get('/setup-product/:id', async (req, res) => {
+    try {
+        const product = await products.findById(req.params.id);
+        if (!product) {
+            const errorHtml = generateHTML(req.language, 'errorPage', {
+                message: req.t('error.productNotFound')
+            });
+            return res.status(404).send(errorHtml);
+        }
+
+        const html = generateHTML(req.language, 'setupProductForm', {
+            productId: req.params.id,
+            productName: product.ProductName,
+            productBarcode: product.ProductBarcode,
+            qrCodeIndex: product.qrCodeIndex || 1,
+            totalQRCodes: product.totalQRCodes || 1,
+            needsSetup: !!product.needsSetup
+        });
+        return res.status(200).send(html);
+    } catch (error) {
+        console.error('Error generating setup product form:', error);
+        const errorHtml = generateHTML(req.language, 'errorPage', {
+            message: req.t('error.serverError')
+        });
+        return res.status(500).send(errorHtml);
+    }
+});
+
+router.post('/setup-product/:id', async (req, res) => {
+    try {
+        const { ProductName, ProductBarcode } = req.body || {};
+        const name = (ProductName || '').trim();
+        const baseBarcode = (ProductBarcode || '').trim();
+
+        if (!name || !baseBarcode) {
+            return res.status(400).json({ message: req.t('validation.allFieldsRequired') });
+        }
+
+        if (baseBarcode.length > 20) {
+            return res.status(400).json({ message: req.t('validation.lotNumberTooLong') });
+        }
+
+        const scannedProduct = await products.findById(req.params.id);
+        if (!scannedProduct) {
+            return res.status(404).json({ message: req.t('error.productNotFound') });
+        }
+
+        // Disallow changing identity once workflow started
+        const started = !!(scannedProduct.ProductDeliveryDate || scannedProduct.ProductReceivedDate || scannedProduct.ProductAssemblingDate || scannedProduct.ProductWarehousingDate);
+        if (started) {
+            return res.status(400).json({ message: req.t('error.invalidData', 'Sản phẩm đã bắt đầu quy trình, không thể thay đổi thông tin') });
+        }
+
+        const masterId = scannedProduct.isMasterQR ? scannedProduct._id : (scannedProduct.parentProductId || scannedProduct._id);
+        const groupProducts = await products.find({
+            $or: [{ _id: masterId }, { parentProductId: masterId }]
+        }).sort({ qrCodeIndex: 1 });
+
+        const groupIds = groupProducts.map(p => p._id);
+        const total = (groupProducts[0]?.totalQRCodes) || groupProducts.length || 1;
+        const digitsMax = String(total).length;
+        const baseMaxLen = 20 - (1 + digitsMax); // base + 'Q' + digits
+
+        if (total > 1 && baseBarcode.length > baseMaxLen) {
+            return res.status(400).json({
+                message: req.t('validation.lotNumberTooLong', `Số hiệu lố quá dài. Với ${total} QR, tối đa ${baseMaxLen} ký tự.`)
+            });
+        }
+
+        // Candidate barcodes for full group (ensure unique outside group)
+        const candidateBarcodes = groupProducts.map((p) => {
+            const idx = p.qrCodeIndex || 1;
+            return idx === 1 ? baseBarcode : `${baseBarcode}Q${idx}`;
+        });
+
+        const conflicts = await products.find({
+            _id: { $nin: groupIds },
+            ProductBarcode: { $in: candidateBarcodes }
+        }).select('_id ProductBarcode');
+
+        if (conflicts.length > 0) {
+            return res.status(422).json({ message: req.t('error.duplicateEntry') });
+        }
+
+        const now = new Date();
+        const bulkOps = groupProducts.map((p) => {
+            const idx = p.qrCodeIndex || 1;
+            return {
+                updateOne: {
+                    filter: { _id: p._id },
+                    update: {
+                        $set: {
+                            ProductName: name,
+                            ProductBarcode: idx === 1 ? baseBarcode : `${baseBarcode}Q${idx}`,
+                            needsSetup: false,
+                            ProductUpdatedDate: now
+                        }
+                    }
+                }
+            };
+        });
+
+        await products.bulkWrite(bulkOps);
+
+        const updated = await products.find({ _id: { $in: groupIds } }).sort({ qrCodeIndex: 1 });
+        return res.status(200).json({
+            message: req.t('success.productUpdated', 'Cập nhật thông tin sản phẩm thành công'),
+            data: updated,
+            masterProductId: masterId
+        });
+    } catch (error) {
+        console.error('Error setting up product:', error);
+        return res.status(500).json({ message: req.t('error.serverError'), error: error.message });
+    }
+});
+
 // Stable QR scan endpoint: one QR per product, never changes.
 // Scanning will redirect to the appropriate next workflow step form.
 router.get('/scan-product/:id', async (req, res) => {
@@ -324,6 +443,12 @@ router.get('/scan-product/:id', async (req, res) => {
                 message: req.t('error.productNotFound')
             });
             return res.status(404).send(errorHtml);
+        }
+
+        // If this product was created via quantity-only, require setup first
+        if (product.needsSetup) {
+            const lang = req.language || 'vi';
+            return res.redirect(302, `/setup-product/${req.params.id}?lang=${lang}`);
         }
 
         const nextStep = getNextWorkflowStep(product);

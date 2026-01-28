@@ -268,9 +268,15 @@ export default function Products() {
                                     };
 
                                     // Stable QR code per product (never changes).
-                                    // Backend will redirect to the correct next step when scanned.
+                                    // Backend will redirect to setup (if needed) or to the correct next step.
                                     const getQRContent = () => {
                                         const stableUrl = `${API_BASE_URL}/scan-product/${element._id}?lang=${currentLanguage}`;
+                                        if (element.needsSetup) {
+                                            return {
+                                                url: stableUrl,
+                                                label: t('table.scanToSetup', 'Quét mã để nhập thông tin sản phẩm')
+                                            };
+                                        }
                                         if (!element.ProductDeliveryDate) {
                                             // Step 1: Delivery
                                             return {

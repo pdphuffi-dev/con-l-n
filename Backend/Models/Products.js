@@ -31,6 +31,12 @@ const ProductSchema = new mongoose.Schema(
             required: false,
             default: 1,
         },
+        // When created via "quantity-only", user must scan QR to set real info first
+        needsSetup: {
+            type: Boolean,
+            required: false,
+            default: false,
+        },
         ProductCreatedDate: {
             type: Date,
             default: Date.now,

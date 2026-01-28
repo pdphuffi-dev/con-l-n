@@ -623,6 +623,117 @@ const generateHTML = (language, templateType, data = {}) => {
         </html>
       `;
 
+    case 'setupProductForm':
+      return `
+        <html>
+          <head>
+            <title>${translate('main.addNewProduct')}</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            ${baseStyles}
+            <style>
+              body { background-color: #fff3cd; }
+              .logo { color: #856404; font-size: 24px; margin-bottom: 20px; }
+              .hint { margin-top: 6px; font-size: 12px; color: #6c757d; }
+              .product-info {
+                background-color: #fff;
+                border: 1px solid #ffeeba;
+                padding: 12px;
+                border-radius: 8px;
+                margin-bottom: 16px;
+                font-size: 13px;
+                color: #5c4c00;
+              }
+              .muted { color: #6c757d; font-size: 12px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="logo">📝</div>
+              <h2>${translate('form.setupProductInfoTitle', 'Nhập thông tin sản phẩm')}</h2>
+
+              <div class="product-info">
+                <div><strong>QR:</strong> ${data.qrCodeIndex}/${data.totalQRCodes}</div>
+                <div class="muted">${translate('form.setupProductInfoNote', 'Quét QR sản phẩm mới sẽ vào màn này để nhập Tên hàng + Số hiệu lố. Sau khi lưu, QR vẫn giữ nguyên và sẽ tự đi theo các bước giao/nhận/lắp ráp/nhập kho.')}</div>
+              </div>
+
+              <form id="setupProductForm">
+                <div class="form-group">
+                  <label for="productName">${translate('form.productName')}:</label>
+                  <input type="text" id="productName" name="productName" required placeholder="${translate('form.productName')}" value="${(data.productName || '').replace(/"/g, '&quot;')}">
+                </div>
+                <div class="form-group">
+                  <label for="productBarcode">${translate('form.lotNumber')}:</label>
+                  <input type="text" id="productBarcode" name="productBarcode" required placeholder="${translate('form.lotNumber')}" maxlength="20">
+                  <div class="hint">${translate('form.setupLotHint', 'Nhập số hiệu lố (tối đa 20 ký tự). Nếu tạo nhiều QR, hệ thống sẽ tự thêm hậu tố Q2, Q3... để đảm bảo mỗi QR là duy nhất.')}</div>
+                </div>
+                <button type="submit" class="button" id="submitBtn">${translate('form.submit')}</button>
+              </form>
+              <div id="message"></div>
+            </div>
+
+            <script>
+              const form = document.getElementById('setupProductForm');
+              const submitBtn = document.getElementById('submitBtn');
+              const messageDiv = document.getElementById('message');
+
+              form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const productName = document.getElementById('productName').value.trim();
+                const productBarcode = document.getElementById('productBarcode').value.trim();
+
+                if (!productName || !productBarcode) {
+                  messageDiv.innerHTML = '<div class="error">${translate('validation.allFieldsRequired')}</div>';
+                  return;
+                }
+
+                if (productBarcode.length > 20) {
+                  messageDiv.innerHTML = '<div class="error">${translate('validation.lotNumberTooLong')}</div>';
+                  return;
+                }
+
+                submitBtn.disabled = true;
+                submitBtn.textContent = '${translate('common.loading')}';
+
+                try {
+                  const response = await fetch('/setup-product/${data.productId}', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Accept-Language': '${language}',
+                      'X-Language': '${language}'
+                    },
+                    body: JSON.stringify({
+                      ProductName: productName,
+                      ProductBarcode: productBarcode
+                    })
+                  });
+
+                  const resp = await response.json();
+
+                  if (response.ok) {
+                    const successMessage = resp.message || '${translate('success.productUpdated')}';
+                    messageDiv.innerHTML = '<div style="color: #28a745; font-size: 16px; margin-top: 15px;">✅ ' + successMessage + '</div>';
+                    setTimeout(() => {
+                      // After setup, go back to stable scan URL (will redirect to correct next step)
+                      window.location.href = '/scan-product/${data.productId}?lang=${language}';
+                    }, 900);
+                  } else {
+                    const errMsg = resp.message || '${translate('error.serverError')}';
+                    messageDiv.innerHTML = '<div class="error">' + errMsg + '</div>';
+                  }
+                } catch (error) {
+                  messageDiv.innerHTML = '<div class="error">${translate('error.serverError')}</div>';
+                } finally {
+                  submitBtn.disabled = false;
+                  submitBtn.textContent = '${translate('form.submit')}';
+                }
+              });
+            </script>
+          </body>
+        </html>
+      `;
+
     case 'deviceRegistrationForm':
       return `
         <html>
