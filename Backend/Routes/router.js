@@ -191,6 +191,27 @@ router.get('/create-product-form', async (req, res) => {
 
 router.get('/deliver-product/:id', async (req, res) => {
     try {
+        // Check if user is registered first
+        const clientIP = getRealIP(req);
+        const deviceId = generateDeviceId(req);
+        const scannedUser = await users.findOne({ 
+            $or: [
+                { DeviceId: deviceId },
+                { DeviceIP: clientIP }
+            ]
+        });
+
+        if (!scannedUser) {
+            // User not registered - show registration form
+            const deviceInfo = getDeviceInfo(req);
+            const html = generateHTML(req.language, 'userRegistrationRequired', {
+                deviceInfo,
+                redirectUrl: `/deliver-product/${req.params.id}?lang=${req.language}`,
+                actionType: 'delivery'
+            });
+            return res.status(200).send(html);
+        }
+
         const product = await products.findById(req.params.id);
         if (!product) {
             return res.status(404).send(`
@@ -216,7 +237,9 @@ router.get('/deliver-product/:id', async (req, res) => {
         const html = generateHTML(req.language, 'deliveryForm', {
             productName: product.ProductName,
             productBarcode: product.ProductBarcode,
-            productId: req.params.id
+            productId: req.params.id,
+            userName: scannedUser.UserName,
+            employeeCode: scannedUser.EmployeeCode
         });
         
         res.status(200).send(html);
@@ -232,6 +255,27 @@ router.get('/deliver-product/:id', async (req, res) => {
 
 router.get('/receive-product/:id', async (req, res) => {
     try {
+        // Check if user is registered first
+        const clientIP = getRealIP(req);
+        const deviceId = generateDeviceId(req);
+        const scannedUser = await users.findOne({ 
+            $or: [
+                { DeviceId: deviceId },
+                { DeviceIP: clientIP }
+            ]
+        });
+
+        if (!scannedUser) {
+            // User not registered - show registration form
+            const deviceInfo = getDeviceInfo(req);
+            const html = generateHTML(req.language, 'userRegistrationRequired', {
+                deviceInfo,
+                redirectUrl: `/receive-product/${req.params.id}?lang=${req.language}`,
+                actionType: 'receive'
+            });
+            return res.status(200).send(html);
+        }
+
         const product = await products.findById(req.params.id);
         if (!product) {
             const errorHtml = generateHTML(req.language, 'errorPage', {
@@ -244,7 +288,9 @@ router.get('/receive-product/:id', async (req, res) => {
             productName: product.ProductName,
             productBarcode: product.ProductBarcode,
             shippingQuantity: product.ShippingQuantity,
-            productId: req.params.id
+            productId: req.params.id,
+            userName: scannedUser.UserName,
+            employeeCode: scannedUser.EmployeeCode
         });
         
         res.status(200).send(html);
@@ -315,7 +361,7 @@ router.get('/update-delivery/:id', async (req, res) => {
     const clientIP = getRealIP(req);
 
     try {
-        // Find user by IP
+        // Find user by IP - require user to be registered
         const deviceId = generateDeviceId(req);
         const scannedUser = await users.findOne({ 
             $or: [
@@ -323,7 +369,56 @@ router.get('/update-delivery/:id', async (req, res) => {
                 { DeviceIP: clientIP }
             ]
         });
-        const scannedBy = scannedUser ? `${scannedUser.UserName} (${scannedUser.EmployeeCode})` : `Device: ${deviceId.substring(0, 8)}`;
+
+        if (!scannedUser) {
+            // User not registered - show error page
+            return res.status(403).send(`
+                <html>
+                    <head>
+                        <title>${req.t('auth.userNotRegistered')}</title>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <style>
+                            body {
+                                font-family: Arial, sans-serif;
+                                text-align: center;
+                                padding: 50px;
+                                background-color: #fff3cd;
+                            }
+                            .warning {
+                                color: #856404;
+                                font-size: 24px;
+                                margin-bottom: 20px;
+                            }
+                            .message {
+                                font-size: 18px;
+                                color: #333;
+                                margin-bottom: 30px;
+                            }
+                            .register-link {
+                                background-color: #007bff;
+                                color: white;
+                                padding: 12px 24px;
+                                text-decoration: none;
+                                border-radius: 5px;
+                                font-size: 16px;
+                                display: inline-block;
+                            }
+                            .register-link:hover {
+                                background-color: #0056b3;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="warning">⚠️</div>
+                        <div class="message">${req.t('auth.deliveryRequiresRegistration')}</div>
+                        <a href="/register-device-form?lang=${req.language}" class="register-link">${req.t('auth.registerAndContinue')}</a>
+                    </body>
+                </html>
+            `);
+        }
+
+        const scannedBy = `${scannedUser.UserName} (${scannedUser.EmployeeCode})`;
 
         const updateData = {
             ProductDeliveryDate: new Date(),
@@ -352,11 +447,10 @@ router.get('/update-delivery/:id', async (req, res) => {
             timestamp: new Date()
         });
 
-        const userInfo = scannedUser ?
-            `<div class="user-info" style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+        const userInfo = `<div class="user-info" style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
                 <strong>Người thực hiện:</strong> ${scannedUser.UserName}<br>
                 <strong>Mã NV:</strong> ${scannedUser.EmployeeCode}
-            </div>` : '';
+            </div>`;
 
         res.status(200).send(`
             <html>
@@ -460,7 +554,7 @@ router.get('/update-received/:id', async (req, res) => {
     const clientIP = getRealIP(req);
 
     try {
-        // Find user by IP
+        // Find user by IP - require user to be registered
         const deviceId = generateDeviceId(req);
         const scannedUser = await users.findOne({ 
             $or: [
@@ -468,7 +562,56 @@ router.get('/update-received/:id', async (req, res) => {
                 { DeviceIP: clientIP }
             ]
         });
-        const scannedBy = scannedUser ? `${scannedUser.UserName} (${scannedUser.EmployeeCode})` : `Device: ${deviceId.substring(0, 8)}`;
+
+        if (!scannedUser) {
+            // User not registered - show error page
+            return res.status(403).send(`
+                <html>
+                    <head>
+                        <title>${req.t('auth.userNotRegistered')}</title>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <style>
+                            body {
+                                font-family: Arial, sans-serif;
+                                text-align: center;
+                                padding: 50px;
+                                background-color: #fff3cd;
+                            }
+                            .warning {
+                                color: #856404;
+                                font-size: 24px;
+                                margin-bottom: 20px;
+                            }
+                            .message {
+                                font-size: 18px;
+                                color: #333;
+                                margin-bottom: 30px;
+                            }
+                            .register-link {
+                                background-color: #007bff;
+                                color: white;
+                                padding: 12px 24px;
+                                text-decoration: none;
+                                border-radius: 5px;
+                                font-size: 16px;
+                                display: inline-block;
+                            }
+                            .register-link:hover {
+                                background-color: #0056b3;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="warning">⚠️</div>
+                        <div class="message">${req.t('auth.receiveRequiresRegistration')}</div>
+                        <a href="/register-device-form?lang=${req.language}" class="register-link">${req.t('auth.registerAndContinue')}</a>
+                    </body>
+                </html>
+            `);
+        }
+
+        const scannedBy = `${scannedUser.UserName} (${scannedUser.EmployeeCode})`;
 
         const updateData = {
             ProductReceivedDate: new Date(),
@@ -497,11 +640,10 @@ router.get('/update-received/:id', async (req, res) => {
             timestamp: new Date()
         });
 
-        const userInfo = scannedUser ?
-            `<div class="user-info" style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+        const userInfo = `<div class="user-info" style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
                 <strong>Người thực hiện:</strong> ${scannedUser.UserName}<br>
                 <strong>Mã NV:</strong> ${scannedUser.EmployeeCode}
-            </div>` : '';
+            </div>`;
 
         res.status(200).send(`
             <html>

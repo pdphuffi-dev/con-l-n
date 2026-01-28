@@ -55,13 +55,39 @@ module.exports = {
     receivedQuantity: 'Nhập số lượng nhận đánh bóng',
     productName: 'Tên sản phẩm',
     lotNumber: 'Số hiệu lố',
-    employeeCode: 'Mã nhân viên'
+    employeeCode: 'Mã nhân viên',
+    submit: 'Gửi'
     },
 
     table:{
       lotNumber: 'Số hiệu lố',
       quantity: 'Số lượng',
      },
+
+  auth: {
+    registrationRequired: 'Yêu cầu đăng ký người dùng',
+    actionNotAllowed: 'Hành động không được phép',
+    deliveryRequiresRegistration: 'Bạn cần đăng ký làm người dùng để có thể quét sản phẩm giao hàng',
+    receiveRequiresRegistration: 'Bạn cần đăng ký làm người dùng để có thể quét sản phẩm nhận hàng',
+    registerAndContinue: 'Đăng ký và tiếp tục',
+    userNotRegistered: 'Người dùng chưa được đăng ký'
+  },
+
+  users: {
+    addNewUser: 'Thêm người dùng mới',
+    userName: 'Tên người dùng'
+  },
+
+  common: {
+    loading: 'Đang tải...',
+    noData: 'Không có dữ liệu',
+    success: 'Thành công'
+  },
+
+  messages: {
+    error: 'Lỗi',
+    somethingWentWrong: 'Có lỗi xảy ra'
+  },
 
 
 };

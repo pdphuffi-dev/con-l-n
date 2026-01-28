@@ -179,8 +179,8 @@ export default function Products() {
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.lotNumber')}</th>
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.deliveryInfo')}</th>
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.receivedInfo')}</th>
-                                <th scope="col" style={{ textAlign: 'center' }}>{t('table.Assembling')}</th>
-                                <th scope="col" style={{ textAlign: 'center' }}>{t('table.Received')}</th>
+                                <th scope="col" style={{ textAlign: 'center' }}>{t('table.assembling')}</th>
+                                <th scope="col" style={{ textAlign: 'center' }}>{t('table.received')}</th>
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.updatedDate')}</th>
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.qrCode')}</th>
                             </tr>
@@ -259,6 +259,32 @@ export default function Products() {
                                                     )}
                                                     </div>
                                                 </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <div>{element.ShippingQuantity || '-'}</div>
+                                                    <div>{formatDate(element.ProductDeliveryDate)}</div>
+                                                    <div style={{ fontSize: '12px', marginTop: '5px', maxWidth: '120px', margin: '5px auto 0' }}>
+                                                    {element.DeliveryScannedBy ? (
+                                                        <span style={{ color: '#28a745', fontWeight: '500' }}>
+                                                            {element.DeliveryScannedBy}
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{ color: '#6c757d' }}>{t('table.notScanned')}</span>
+                                                    )}
+                                                    </div>
+                                                </td>
+                                                <td style={{ textAlign: 'center' }}>
+                                                    <div>{element.ShippingQuantity || '-'}</div>
+                                                    <div>{formatDate(element.ProductDeliveryDate)}</div>
+                                                    <div style={{ fontSize: '12px', marginTop: '5px', maxWidth: '120px', margin: '5px auto 0' }}>
+                                                    {element.DeliveryScannedBy ? (
+                                                        <span style={{ color: '#28a745', fontWeight: '500' }}>
+                                                            {element.DeliveryScannedBy}
+                                                        </span>
+                                                    ) : (
+                                                        <span style={{ color: '#6c757d' }}>{t('table.notScanned')}</span>
+                                                    )}
+                                                    </div>
+                                                </td>
                                                 {/* <td style={{ textAlign: 'center' }}>
                                                     {element.ReceivedQuantity || '-'}
                                                 </td> */}
@@ -312,7 +338,7 @@ export default function Products() {
                     </table>
                 </div>
 
-                {process.env.NODE_ENV === 'development' && (
+                {/* {process.env.NODE_ENV === 'development' && (
                     <div className="row">
                         <div className="col-md-8">
                             <IPDebug />
@@ -321,7 +347,7 @@ export default function Products() {
                             <IPTestQR />
                         </div>
                     </div>
-                )}
+                )} */}
 
             </div>
 
