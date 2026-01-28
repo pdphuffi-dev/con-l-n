@@ -55,17 +55,22 @@ module.exports = {
     productName: 'Tên sản phẩm',
     lotNumber: 'Số hiệu lố',
     employeeCode: 'Mã nhân viên'
-    }
+    },
+
     table:{
       lotNumber: 'Số hiệu lố',
+    },
 
-      form: {
-    deliveryQuantity: 'Nhập số lượng nhận đánh bóng',
+    form: {
+    receiveQuantity: 'Nhập số lượng nhận đánh bóng',
     productName: 'Tên sản phẩm',
     lotNumber: 'Số hiệu lố',
     employeeCode: 'Mã nhân viên'
-    }
+    },
+    
     table:{
       lotNumber: 'Số hiệu lố',
-  }
+    },
+
+     
 };
