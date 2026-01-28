@@ -412,7 +412,7 @@ export default function Products() {
                                                         </div>
                                                     )}
                                                 </td>
-                                                <td style={{ textAlign: 'center' }}>{element.ProductBarcode}</td>
+                                                <td style={{ textAlign: 'center' }}>{element.ProductBarcode.includes('GENERATE') ? '-': element.ProductBarcode}</td>
                                                 <td style={{ textAlign: 'center' }}>
                                                     <div>{element.ShippingQuantity || '-'}</div>
                                                     <div>{formatDate(element.ProductDeliveryDate)}</div>

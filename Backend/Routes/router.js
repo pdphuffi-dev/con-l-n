@@ -80,7 +80,7 @@ router.post("/insertproduct", async (req, res) => {
                 pad2(d.getMinutes()) +
                 pad2(d.getSeconds());
             const rand = Math.floor(Math.random() * 90) + 10; // 2 digits
-            return `B${stamp}${rand}`;
+            return `GENERATE${stamp}${rand}`;
         };
 
         let baseBarcode = ProductBarcode;
