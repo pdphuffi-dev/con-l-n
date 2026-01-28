@@ -9,6 +9,16 @@ const ProductSchema = new mongoose.Schema(
             type: String,
             required: true,
         },
+        // Stable human-friendly code for scanning/identification (different from lot number)
+        // - Lot number: ProductBarcode
+        // - Stable code: ProductCode (used in QR URL)
+        ProductCode: {
+            type: String,
+            required: false,
+            unique: true,
+            sparse: true, // allow older docs without ProductCode
+            index: true
+        },
         // Multi-QR support (one "master" + related QR items)
         parentProductId: {
             type: mongoose.Schema.Types.ObjectId,

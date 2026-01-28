@@ -88,6 +88,7 @@ const generateHTML = (language, templateType, data = {}) => {
               <div class="product-info">
                 <strong>${data.productName}</strong><br>
                 ${translate('table.lotNumber')}: ${data.productBarcode}
+                ${data.productCode ? `<br><strong>CODE:</strong> ${data.productCode}` : ''}
               </div>
               ${data.userName ? `
               <div class="product-info" style="background-color: #d4edda; border: 1px solid #c3e6cb;">
@@ -129,7 +130,13 @@ const generateHTML = (language, templateType, data = {}) => {
                   if (response.ok) {
                     messageDiv.innerHTML = '<div style="color: #28a745; font-size: 16px; margin-top: 15px;">✅ ${translate('success.productDelivered')}</div>';
                     setTimeout(() => {
-                      window.close();
+                      const autoFlow = ${data.autoFlow ? 'true' : 'false'};
+                      const nextUrl = ${(data.nextUrl ? `'${data.nextUrl}'` : 'null')};
+                      if (autoFlow && nextUrl) {
+                        window.location.href = nextUrl;
+                      } else {
+                        window.close();
+                      }
                     }, 2000);
                   } else {
                     throw new Error('${translate('error.serverError')}');
@@ -161,6 +168,7 @@ const generateHTML = (language, templateType, data = {}) => {
               <div class="product-info">
                 <strong>${data.productName}</strong><br>
                 ${translate('table.lotNumber')}: ${data.productBarcode}<br>
+                ${data.productCode ? `<strong>CODE:</strong> ${data.productCode}<br>` : ''}
                 ${translate('Nhập số lượng giao đánh bóng')}: ${data.shippingQuantity || translate('common.noData')}
               </div>
               ${data.userName ? `
@@ -203,7 +211,13 @@ const generateHTML = (language, templateType, data = {}) => {
                   if (response.ok) {
                     messageDiv.innerHTML = '<div style="color: #28a745; font-size: 16px; margin-top: 15px;">✅ ${translate('success.productReceived')}</div>';
                     setTimeout(() => {
-                      window.close();
+                      const autoFlow = ${data.autoFlow ? 'true' : 'false'};
+                      const nextUrl = ${(data.nextUrl ? `'${data.nextUrl}'` : 'null')};
+                      if (autoFlow && nextUrl) {
+                        window.location.href = nextUrl;
+                      } else {
+                        window.close();
+                      }
                     }, 2000);
                   } else {
                     throw new Error('${translate('error.serverError')}');
@@ -422,9 +436,16 @@ const generateHTML = (language, templateType, data = {}) => {
                     if (createdProducts.length > 0) {
                       const itemsHtml = createdProducts.map((p, idx) => {
                         // Stable QR: always scan the same code for this product
-                        const stepUrl = baseUrl + '/scan-product/' + p._id + '?lang=' + encodeURIComponent(lang);
+                        const auto = '1';
+                        const stepUrl = (p.ProductCode
+                          ? (baseUrl + '/scan/' + encodeURIComponent(p.ProductCode) + '?lang=' + encodeURIComponent(lang) + '&auto=' + auto)
+                          : (baseUrl + '/scan-product/' + p._id + '?lang=' + encodeURIComponent(lang) + '&auto=' + auto)
+                        );
                         const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size + '&data=' + encodeURIComponent(stepUrl);
-                        const label = (p.ProductBarcode ? p.ProductBarcode : '') + (p.qrCodeIndex ? (' (QR ' + p.qrCodeIndex + '/' + (p.totalQRCodes || createdProducts.length) + ')') : (' #' + (idx + 1)));
+                        const lotLabel = (p.ProductBarcode ? p.ProductBarcode : '');
+                        const codeLabel = (p.ProductCode ? (' • CODE: ' + p.ProductCode) : '');
+                        const qrIdxLabel = (p.qrCodeIndex ? (' (QR ' + p.qrCodeIndex + '/' + (p.totalQRCodes || createdProducts.length) + ')') : (' #' + (idx + 1)));
+                        const label = lotLabel + codeLabel + qrIdxLabel;
 
                         return (
                           '<div class="qr-item">' +
@@ -578,9 +599,16 @@ const generateHTML = (language, templateType, data = {}) => {
 
                     if (createdProducts.length > 0) {
                       const itemsHtml = createdProducts.map((p, idx) => {
-                        const stableUrl = baseUrl + '/scan-product/' + p._id + '?lang=' + encodeURIComponent(lang);
+                        const auto = '1';
+                        const stableUrl = (p.ProductCode
+                          ? (baseUrl + '/scan/' + encodeURIComponent(p.ProductCode) + '?lang=' + encodeURIComponent(lang) + '&auto=' + auto)
+                          : (baseUrl + '/scan-product/' + p._id + '?lang=' + encodeURIComponent(lang) + '&auto=' + auto)
+                        );
                         const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=' + size + 'x' + size + '&data=' + encodeURIComponent(stableUrl);
-                        const label = (p.ProductBarcode ? p.ProductBarcode : '') + (p.qrCodeIndex ? (' (QR ' + p.qrCodeIndex + '/' + (p.totalQRCodes || createdProducts.length) + ')') : (' #' + (idx + 1)));
+                        const lotLabel = (p.ProductBarcode ? p.ProductBarcode : '');
+                        const codeLabel = (p.ProductCode ? (' • CODE: ' + p.ProductCode) : '');
+                        const qrIdxLabel = (p.qrCodeIndex ? (' (QR ' + p.qrCodeIndex + '/' + (p.totalQRCodes || createdProducts.length) + ')') : (' #' + (idx + 1)));
+                        const label = lotLabel + codeLabel + qrIdxLabel;
 
                         return (
                           '<div class="qr-item">' +
@@ -716,7 +744,12 @@ const generateHTML = (language, templateType, data = {}) => {
                     messageDiv.innerHTML = '<div style="color: #28a745; font-size: 16px; margin-top: 15px;">✅ ' + successMessage + '</div>';
                     setTimeout(() => {
                       // After setup, go back to stable scan URL (will redirect to correct next step)
-                      window.location.href = '/scan-product/${data.productId}?lang=${language}';
+                      const code = ${(data.productCode ? `'${String(data.productCode)}'` : 'null')};
+                      if (code) {
+                        window.location.href = '/scan/' + encodeURIComponent(code) + '?lang=${language}&auto=1';
+                      } else {
+                        window.location.href = '/scan-product/${data.productId}?lang=${language}&auto=1';
+                      }
                     }, 900);
                   } else {
                     const errMsg = resp.message || '${translate('error.serverError')}';
@@ -977,6 +1010,7 @@ const generateHTML = (language, templateType, data = {}) => {
               <div class="product-info">
                 <strong>${data.productName}</strong><br>
                 ${translate('table.lotNumber')}: ${data.productBarcode}<br>
+                ${data.productCode ? `<strong>CODE:</strong> ${data.productCode}<br>` : ''}
                 ${translate('form.receivedQuantity')}: ${data.receivedQuantity || translate('common.noData')}
               </div>
               ${data.userName ? `
@@ -1019,7 +1053,13 @@ const generateHTML = (language, templateType, data = {}) => {
                   if (response.ok) {
                     messageDiv.innerHTML = '<div style="color: #28a745; font-size: 16px; margin-top: 15px;">✅ ${translate('success.productAssembled')}</div>';
                     setTimeout(() => {
-                      window.close();
+                      const autoFlow = ${data.autoFlow ? 'true' : 'false'};
+                      const nextUrl = ${(data.nextUrl ? `'${data.nextUrl}'` : 'null')};
+                      if (autoFlow && nextUrl) {
+                        window.location.href = nextUrl;
+                      } else {
+                        window.close();
+                      }
                     }, 2000);
                   } else {
                     const errorData = await response.text();
@@ -1053,6 +1093,7 @@ const generateHTML = (language, templateType, data = {}) => {
               <div class="product-info">
                 <strong>${data.productName}</strong><br>
                 ${translate('table.lotNumber')}: ${data.productBarcode}<br>
+                ${data.productCode ? `<strong>CODE:</strong> ${data.productCode}<br>` : ''}
                 ${translate('form.assemblingQuantity')}: ${data.assemblingQuantity || translate('common.noData')}
               </div>
               ${data.userName ? `
@@ -1095,7 +1136,13 @@ const generateHTML = (language, templateType, data = {}) => {
                   if (response.ok) {
                     messageDiv.innerHTML = '<div style="color: #28a745; font-size: 16px; margin-top: 15px;">✅ ${translate('success.productWarehoused')}</div>';
                     setTimeout(() => {
-                      window.close();
+                      const autoFlow = ${data.autoFlow ? 'true' : 'false'};
+                      const nextUrl = ${(data.nextUrl ? `'${data.nextUrl}'` : 'null')};
+                      if (autoFlow && nextUrl) {
+                        window.location.href = nextUrl;
+                      } else {
+                        window.close();
+                      }
                     }, 2000);
                   } else {
                     const errorData = await response.text();
@@ -1248,6 +1295,8 @@ const generateHTML = (language, templateType, data = {}) => {
               const secondsLabel = '${translate('workflow.seconds', 'giây')}';
               const minutesLabel = '${translate('workflow.minutes', 'phút')}';
               const doneText = '${translate('workflow.doneWait', 'Đã đủ thời gian. Vui lòng quét lại mã QR để tiếp tục.') }';
+              const autoRedirect = ${data.autoRedirect ? 'true' : 'false'};
+              const nextUrl = ${(data.nextUrl ? `'${data.nextUrl}'` : 'null')};
               let done = false;
 
               function updateDisplay() {
@@ -1280,12 +1329,15 @@ const generateHTML = (language, templateType, data = {}) => {
                 remainingTime--;
 
                 if (remainingTime < 0) {
-                  // Time's up -> stop here, require rescan (no auto-redirect)
                   done = true;
                   countdownElement.textContent = '0';
                   unitElement.textContent = secondsLabel;
                   countdownElement.className = 'countdown';
-                  titleText.textContent = doneText;
+                  if (autoRedirect && nextUrl) {
+                    window.location.href = nextUrl;
+                  } else {
+                    titleText.textContent = doneText;
+                  }
                 }
               }
 

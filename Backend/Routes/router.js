@@ -7,6 +7,47 @@ const { getRealIP, getClientInfo } = require('../utils/getRealIP');
 const { generateDeviceId, getDeviceInfo, isValidDeviceId } = require('../utils/deviceId');
 const { validateWorkflowTiming, getNextWorkflowStep, updateWorkflowStatus } = require('../utils/workflowValidator');
 const { WorkflowConfig } = require('../Models/WorkflowConfig');
+const crypto = require('crypto');
+
+const isAutoFlow = (req) => String(req.query.auto || '') === '1';
+
+const generateProductCode = () => {
+    // Example: P + 10 hex chars => 11 chars (easy to print/scan)
+    return `P${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
+};
+
+const generateUniqueProductCodes = async (count) => {
+    // Batch-generate codes and ensure uniqueness against DB
+    const makeSet = (n) => {
+        const set = new Set();
+        while (set.size < n) set.add(generateProductCode());
+        return [...set];
+    };
+
+    let codes = makeSet(count);
+    for (let attempt = 0; attempt < 5; attempt++) {
+        // eslint-disable-next-line no-await-in-loop
+        const conflicts = await products.find({ ProductCode: { $in: codes } }).select('ProductCode');
+        if (!conflicts || conflicts.length === 0) return codes;
+
+        const conflictSet = new Set(conflicts.map((d) => d.ProductCode));
+        const next = [];
+        const used = new Set();
+        for (const c of codes) {
+            let val = c;
+            if (conflictSet.has(val) || used.has(val)) {
+                // regenerate until unique in this batch
+                do {
+                    val = generateProductCode();
+                } while (used.has(val));
+            }
+            used.add(val);
+            next.push(val);
+        }
+        codes = next;
+    }
+    throw new Error('Failed to generate unique ProductCode');
+};
 
 router.post("/insertproduct", async (req, res) => {
     const { ProductName, ProductBarcode, qrQuantity = 1 } = req.body;
@@ -59,10 +100,13 @@ router.post("/insertproduct", async (req, res) => {
             }
         }
 
+        const productCodes = await generateUniqueProductCodes(qrCount);
+
         // Create master product (QR #1)
         const masterProduct = new products({
             ProductName: baseName,
             ProductBarcode: baseBarcode,
+            ProductCode: productCodes[0],
             DeliveryScannedBy: null,
             ReceivedScannedBy: null,
             qrCodeIndex: 1,
@@ -84,6 +128,7 @@ router.post("/insertproduct", async (req, res) => {
             const additionalProduct = new products({
                 ProductName: baseName,
                 ProductBarcode: additionalBarcode,
+                ProductCode: productCodes[i - 1],
                 DeliveryScannedBy: null,
                 ReceivedScannedBy: null,
                 parentProductId: masterProduct._id,
@@ -111,6 +156,58 @@ router.post("/insertproduct", async (req, res) => {
         res.status(500).json({ message: req.t('error.serverError'), error: err.message });
     }
 })
+
+// Scan by ProductCode (stable code, different from lot number)
+router.get('/scan/:code', async (req, res) => {
+    try {
+        const code = String(req.params.code || '').trim();
+        if (!code) {
+            const errorHtml = generateHTML(req.language, 'errorPage', {
+                message: req.t('error.invalidData', 'Mã không hợp lệ')
+            });
+            return res.status(400).send(errorHtml);
+        }
+
+        const product = await products.findOne({ ProductCode: code });
+        if (!product) {
+            const errorHtml = generateHTML(req.language, 'errorPage', {
+                message: req.t('error.productNotFound')
+            });
+            return res.status(404).send(errorHtml);
+        }
+
+        // If this product was created via quantity-only, require setup first
+        const lang = req.language || 'vi';
+        const auto = isAutoFlow(req);
+        if (product.needsSetup) {
+            return res.redirect(302, `/setup-product/${product._id}?lang=${lang}${auto ? '&auto=1' : ''}`);
+        }
+
+        const nextStep = getNextWorkflowStep(product);
+        if (!nextStep) {
+            const doneHtml = generateHTML(req.language, 'successPage', {
+                message: req.t('workflow.workflowCompleted', 'Quy trình đã hoàn tất')
+            });
+            return res.status(200).send(doneHtml);
+        }
+
+        const redirectMap = {
+            delivery: `/deliver-product/${product._id}?lang=${lang}${auto ? '&auto=1' : ''}`,
+            receive: `/receive-product/${product._id}?lang=${lang}${auto ? '&auto=1' : ''}`,
+            assembling: `/assemble-product/${product._id}?lang=${lang}${auto ? '&auto=1' : ''}`,
+            warehousing: `/warehouse-product/${product._id}?lang=${lang}${auto ? '&auto=1' : ''}`,
+        };
+
+        const redirectUrl = redirectMap[nextStep] || `/deliver-product/${product._id}?lang=${lang}${auto ? '&auto=1' : ''}`;
+        return res.redirect(302, redirectUrl);
+    } catch (error) {
+        console.error('Error scanning product code:', error);
+        const errorHtml = generateHTML(req.language, 'errorPage', {
+            message: req.t('error.serverError')
+        });
+        return res.status(500).send(errorHtml);
+    }
+});
 
 router.get('/products', async (req, res) => {
     try {
@@ -331,6 +428,7 @@ router.get('/setup-product/:id', async (req, res) => {
             productId: req.params.id,
             productName: product.ProductName,
             productBarcode: product.ProductBarcode,
+            productCode: product.ProductCode,
             qrCodeIndex: product.qrCodeIndex || 1,
             totalQRCodes: product.totalQRCodes || 1,
             needsSetup: !!product.needsSetup
@@ -446,9 +544,10 @@ router.get('/scan-product/:id', async (req, res) => {
         }
 
         // If this product was created via quantity-only, require setup first
+        const lang = req.language || 'vi';
+        const auto = isAutoFlow(req);
         if (product.needsSetup) {
-            const lang = req.language || 'vi';
-            return res.redirect(302, `/setup-product/${req.params.id}?lang=${lang}`);
+            return res.redirect(302, `/setup-product/${req.params.id}?lang=${lang}${auto ? '&auto=1' : ''}`);
         }
 
         const nextStep = getNextWorkflowStep(product);
@@ -459,15 +558,15 @@ router.get('/scan-product/:id', async (req, res) => {
             return res.status(200).send(doneHtml);
         }
 
-        const lang = req.language || 'vi';
+        // lang/auto already computed above
         const redirectMap = {
-            delivery: `/deliver-product/${req.params.id}?lang=${lang}`,
-            receive: `/receive-product/${req.params.id}?lang=${lang}`,
-            assembling: `/assemble-product/${req.params.id}?lang=${lang}`,
-            warehousing: `/warehouse-product/${req.params.id}?lang=${lang}`,
+            delivery: `/deliver-product/${req.params.id}?lang=${lang}${auto ? '&auto=1' : ''}`,
+            receive: `/receive-product/${req.params.id}?lang=${lang}${auto ? '&auto=1' : ''}`,
+            assembling: `/assemble-product/${req.params.id}?lang=${lang}${auto ? '&auto=1' : ''}`,
+            warehousing: `/warehouse-product/${req.params.id}?lang=${lang}${auto ? '&auto=1' : ''}`,
         };
 
-        const redirectUrl = redirectMap[nextStep] || `/deliver-product/${req.params.id}?lang=${lang}`;
+        const redirectUrl = redirectMap[nextStep] || `/deliver-product/${req.params.id}?lang=${lang}${auto ? '&auto=1' : ''}`;
         return res.redirect(302, redirectUrl);
     } catch (error) {
         console.error('Error scanning product:', error);
@@ -490,12 +589,13 @@ router.get('/deliver-product/:id', async (req, res) => {
             ]
         });
 
+        const auto = isAutoFlow(req);
         if (!scannedUser) {
             // User not registered - show registration form
             const deviceInfo = getDeviceInfo(req);
             const html = generateHTML(req.language, 'userRegistrationRequired', {
                 deviceInfo,
-                redirectUrl: `/deliver-product/${req.params.id}?lang=${req.language}`,
+                redirectUrl: `/deliver-product/${req.params.id}?lang=${req.language}${auto ? '&auto=1' : ''}`,
                 actionType: 'delivery'
             });
             return res.status(200).send(html);
@@ -523,12 +623,16 @@ router.get('/deliver-product/:id', async (req, res) => {
             `);
         }
 
+        const nextUrl = `/receive-product/${req.params.id}?lang=${req.language}${auto ? '&auto=1' : ''}`;
         const html = generateHTML(req.language, 'deliveryForm', {
             productName: product.ProductName,
             productBarcode: product.ProductBarcode,
             productId: req.params.id,
+            productCode: product.ProductCode,
             userName: scannedUser.UserName,
-            employeeCode: scannedUser.EmployeeCode
+            employeeCode: scannedUser.EmployeeCode,
+            autoFlow: auto,
+            nextUrl
         });
         
         res.status(200).send(html);
@@ -554,12 +658,13 @@ router.get('/receive-product/:id', async (req, res) => {
             ]
         });
 
+        const auto = isAutoFlow(req);
         if (!scannedUser) {
             // User not registered - show registration form
             const deviceInfo = getDeviceInfo(req);
             const html = generateHTML(req.language, 'userRegistrationRequired', {
                 deviceInfo,
-                redirectUrl: `/receive-product/${req.params.id}?lang=${req.language}`,
+                redirectUrl: `/receive-product/${req.params.id}?lang=${req.language}${auto ? '&auto=1' : ''}`,
                 actionType: 'receive'
             });
             return res.status(200).send(html);
@@ -585,8 +690,8 @@ router.get('/receive-product/:id', async (req, res) => {
                     productName: `${product.ProductName} (${product.ProductBarcode})`,
                     nextStep: req.t('workflow.stepReceive', 'Nhận đánh bóng'),
                     minimumMinutes: String(validation.minimumMinutes || 1),
-                    // Do NOT bypass timing with skipCountdown; user must rescan/retry normally
-                    nextUrl: `/receive-product/${req.params.id}?lang=${req.language}`
+                    nextUrl: `/receive-product/${req.params.id}?lang=${req.language}${auto ? '&auto=1' : ''}`,
+                    autoRedirect: auto
                 });
                 return res.status(200).send(html);
             }
@@ -596,13 +701,17 @@ router.get('/receive-product/:id', async (req, res) => {
             return res.status(400).send(errorHtml);
         }
 
+        const nextUrl = `/assemble-product/${req.params.id}?lang=${req.language}${auto ? '&auto=1' : ''}`;
         const html = generateHTML(req.language, 'receiveForm', {
             productName: product.ProductName,
             productBarcode: product.ProductBarcode,
             shippingQuantity: product.ShippingQuantity,
             productId: req.params.id,
+            productCode: product.ProductCode,
             userName: scannedUser.UserName,
-            employeeCode: scannedUser.EmployeeCode
+            employeeCode: scannedUser.EmployeeCode,
+            autoFlow: auto,
+            nextUrl
         });
         
         res.status(200).send(html);
@@ -628,12 +737,13 @@ router.get('/assemble-product/:id', async (req, res) => {
             ]
         });
 
+        const auto = isAutoFlow(req);
         if (!scannedUser) {
             // User not registered - show registration form
             const deviceInfo = getDeviceInfo(req);
             const html = generateHTML(req.language, 'userRegistrationRequired', {
                 deviceInfo,
-                redirectUrl: `/assemble-product/${req.params.id}?lang=${req.language}`,
+                redirectUrl: `/assemble-product/${req.params.id}?lang=${req.language}${auto ? '&auto=1' : ''}`,
                 actionType: 'assembling'
             });
             return res.status(200).send(html);
@@ -647,7 +757,7 @@ router.get('/assemble-product/:id', async (req, res) => {
             return res.status(404).send(errorHtml);
         }
 
-        // Validate workflow timing (no bypass via query params)
+        // Validate workflow timing
         const validation = await validateWorkflowTiming(product, 'assembling');
         if (!validation.isValid) {
             // Show countdown page if time remaining is less than or equal to 1 minute
@@ -659,7 +769,8 @@ router.get('/assemble-product/:id', async (req, res) => {
                     productName: `${product.ProductName} (${product.ProductBarcode})`,
                     nextStep: req.t('workflow.stepAssembling', 'Lắp ráp'),
                     minimumMinutes: String(validation.minimumMinutes || 1),
-                    nextUrl: `/assemble-product/${req.params.id}?lang=${req.language}`
+                    nextUrl: `/assemble-product/${req.params.id}?lang=${req.language}${auto ? '&auto=1' : ''}`,
+                    autoRedirect: auto
                 });
                 return res.status(200).send(html);
             }
@@ -669,13 +780,17 @@ router.get('/assemble-product/:id', async (req, res) => {
             return res.status(400).send(errorHtml);
         }
 
+        const nextUrl = `/warehouse-product/${req.params.id}?lang=${req.language}${auto ? '&auto=1' : ''}`;
         const html = generateHTML(req.language, 'assemblingForm', {
             productName: product.ProductName,
             productBarcode: product.ProductBarcode,
             receivedQuantity: product.ReceivedQuantity,
             productId: req.params.id,
+            productCode: product.ProductCode,
             userName: scannedUser.UserName,
-            employeeCode: scannedUser.EmployeeCode
+            employeeCode: scannedUser.EmployeeCode,
+            autoFlow: auto,
+            nextUrl
         });
 
         res.status(200).send(html);
@@ -701,12 +816,13 @@ router.get('/warehouse-product/:id', async (req, res) => {
             ]
         });
 
+        const auto = isAutoFlow(req);
         if (!scannedUser) {
             // User not registered - show registration form
             const deviceInfo = getDeviceInfo(req);
             const html = generateHTML(req.language, 'userRegistrationRequired', {
                 deviceInfo,
-                redirectUrl: `/warehouse-product/${req.params.id}?lang=${req.language}`,
+                redirectUrl: `/warehouse-product/${req.params.id}?lang=${req.language}${auto ? '&auto=1' : ''}`,
                 actionType: 'warehousing'
             });
             return res.status(200).send(html);
@@ -720,7 +836,7 @@ router.get('/warehouse-product/:id', async (req, res) => {
             return res.status(404).send(errorHtml);
         }
 
-        // Validate workflow timing (no bypass via query params)
+        // Validate workflow timing
         const validation = await validateWorkflowTiming(product, 'warehousing');
         if (!validation.isValid) {
             // Show countdown page if time remaining is less than or equal to 1 minute
@@ -732,7 +848,8 @@ router.get('/warehouse-product/:id', async (req, res) => {
                     productName: `${product.ProductName} (${product.ProductBarcode})`,
                     nextStep: req.t('workflow.stepWarehousing', 'Nhập kho'),
                     minimumMinutes: String(validation.minimumMinutes || 1),
-                    nextUrl: `/warehouse-product/${req.params.id}?lang=${req.language}`
+                    nextUrl: `/warehouse-product/${req.params.id}?lang=${req.language}${auto ? '&auto=1' : ''}`,
+                    autoRedirect: auto
                 });
                 return res.status(200).send(html);
             }
@@ -742,13 +859,17 @@ router.get('/warehouse-product/:id', async (req, res) => {
             return res.status(400).send(errorHtml);
         }
 
+        const nextUrl = `/scan-product/${req.params.id}?lang=${req.language}${auto ? '&auto=1' : ''}`;
         const html = generateHTML(req.language, 'warehousingForm', {
             productName: product.ProductName,
             productBarcode: product.ProductBarcode,
             assemblingQuantity: product.AssemblingQuantity,
             productId: req.params.id,
+            productCode: product.ProductCode,
             userName: scannedUser.UserName,
-            employeeCode: scannedUser.EmployeeCode
+            employeeCode: scannedUser.EmployeeCode,
+            autoFlow: auto,
+            nextUrl
         });
 
         res.status(200).send(html);
@@ -1152,7 +1273,8 @@ router.get('/update-received/:id', async (req, res) => {
                 productName: `${scannedProduct.ProductName} (${scannedProduct.ProductBarcode})`,
                 nextStep: req.t('workflow.stepReceive', 'Nhận đánh bóng'),
                 minimumMinutes: String(validation.minimumMinutes || 1),
-                nextUrl: `/update-received/${req.params.id}?lang=${req.language}&quantity=${encodeURIComponent(quantity || '')}`
+                nextUrl: `/update-received/${req.params.id}?lang=${req.language}&quantity=${encodeURIComponent(quantity || '')}`,
+                autoRedirect: true
             });
             return res.status(200).send(html);
         }
@@ -1385,7 +1507,8 @@ router.get('/update-assembling/:id', async (req, res) => {
                 productName: `${product.ProductName} (${product.ProductBarcode})`,
                 nextStep: req.t('workflow.stepAssembling', 'Lắp ráp'),
                 minimumMinutes: String(validation.minimumMinutes || 1),
-                nextUrl: `/update-assembling/${req.params.id}?lang=${req.language}&quantity=${encodeURIComponent(quantity || '')}`
+                nextUrl: `/update-assembling/${req.params.id}?lang=${req.language}&quantity=${encodeURIComponent(quantity || '')}`,
+                autoRedirect: true
             });
             return res.status(200).send(html);
         }
@@ -1601,7 +1724,8 @@ router.get('/update-warehousing/:id', async (req, res) => {
                 productName: `${product.ProductName} (${product.ProductBarcode})`,
                 nextStep: req.t('workflow.stepWarehousing', 'Nhập kho'),
                 minimumMinutes: String(validation.minimumMinutes || 1),
-                nextUrl: `/update-warehousing/${req.params.id}?lang=${req.language}&quantity=${encodeURIComponent(quantity || '')}`
+                nextUrl: `/update-warehousing/${req.params.id}?lang=${req.language}&quantity=${encodeURIComponent(quantity || '')}`,
+                autoRedirect: true
             });
             return res.status(200).send(html);
         }
@@ -2410,7 +2534,8 @@ router.get('/test-countdown/:seconds?', async (req, res) => {
             productName: 'Test Product (TEST-001)',
             nextStep: 'Test Next Step',
             minimumMinutes: '1',
-            nextUrl: '/test-countdown?seconds=' + seconds + '&completed=true'
+            nextUrl: '/test-countdown?seconds=' + seconds + '&completed=true',
+            autoRedirect: true
         });
 
         res.status(200).send(html);
