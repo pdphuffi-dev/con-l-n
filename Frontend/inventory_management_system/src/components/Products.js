@@ -179,8 +179,8 @@ export default function Products() {
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.lotNumber')}</th>
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.deliveryInfo')}</th>
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.receivedInfo')}</th>
-                                <th scope="col" style={{ textAlign: 'center' }}>{t('table.assembling')}</th>
-                                <th scope="col" style={{ textAlign: 'center' }}>{t('table.received')}</th>
+                                <th scope="col" style={{ textAlign: 'center' }}>{t('table.assemblingInfo')}</th>
+                                <th scope="col" style={{ textAlign: 'center' }}>{t('table.warehousingInfo')}</th>
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.updatedDate')}</th>
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.qrCode')}</th>
                             </tr>
@@ -203,22 +203,34 @@ export default function Products() {
                                         });
                                     };
 
-                                    // Determine QR code content
+                                    // Determine QR code content based on workflow
                                     const getQRContent = () => {
                                         if (!element.ProductDeliveryDate) {
-                                            // Show delivery QR with quantity input if no delivery date
+                                            // Step 1: Delivery
                                             return {
                                                 url: `${API_BASE_URL}/deliver-product/${element._id}?lang=${currentLanguage}`,
                                                 label: t('table.scanToDelivery')
                                             };
                                         } else if (!element.ProductReceivedDate) {
-                                            // Show received QR with quantity input if delivery date exists but no received date
+                                            // Step 2: Receive
                                             return {
                                                 url: `${API_BASE_URL}/receive-product/${element._id}?lang=${currentLanguage}`,
                                                 label: t('table.scanToReceive')
                                             };
+                                        } else if (!element.ProductAssemblingDate) {
+                                            // Step 3: Assembling
+                                            return {
+                                                url: `${API_BASE_URL}/assemble-product/${element._id}?lang=${currentLanguage}`,
+                                                label: t('table.scanToAssemble')
+                                            };
+                                        } else if (!element.ProductWarehousingDate) {
+                                            // Step 4: Warehousing
+                                            return {
+                                                url: `${API_BASE_URL}/warehouse-product/${element._id}?lang=${currentLanguage}`,
+                                                label: t('table.scanToWarehouse')
+                                            };
                                         }
-                                        return null; // No QR needed
+                                        return null; // Workflow completed
                                     };
 
                                     const qrContent = getQRContent();
@@ -260,12 +272,12 @@ export default function Products() {
                                                     </div>
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
-                                                    <div>{element.ShippingQuantity || '-'}</div>
-                                                    <div>{formatDate(element.ProductDeliveryDate)}</div>
+                                                    <div>{element.AssemblingQuantity || '-'}</div>
+                                                    <div>{formatDate(element.ProductAssemblingDate)}</div>
                                                     <div style={{ fontSize: '12px', marginTop: '5px', maxWidth: '120px', margin: '5px auto 0' }}>
-                                                    {element.DeliveryScannedBy ? (
-                                                        <span style={{ color: '#28a745', fontWeight: '500' }}>
-                                                            {element.DeliveryScannedBy}
+                                                    {element.AssemblingScannedBy ? (
+                                                        <span style={{ color: '#ffc107', fontWeight: '500' }}>
+                                                            {element.AssemblingScannedBy}
                                                         </span>
                                                     ) : (
                                                         <span style={{ color: '#6c757d' }}>{t('table.notScanned')}</span>
@@ -273,12 +285,12 @@ export default function Products() {
                                                     </div>
                                                 </td>
                                                 <td style={{ textAlign: 'center' }}>
-                                                    <div>{element.ShippingQuantity || '-'}</div>
-                                                    <div>{formatDate(element.ProductDeliveryDate)}</div>
+                                                    <div>{element.WarehousingQuantity || '-'}</div>
+                                                    <div>{formatDate(element.ProductWarehousingDate)}</div>
                                                     <div style={{ fontSize: '12px', marginTop: '5px', maxWidth: '120px', margin: '5px auto 0' }}>
-                                                    {element.DeliveryScannedBy ? (
-                                                        <span style={{ color: '#28a745', fontWeight: '500' }}>
-                                                            {element.DeliveryScannedBy}
+                                                    {element.WarehousingScannedBy ? (
+                                                        <span style={{ color: '#6f42c1', fontWeight: '500' }}>
+                                                            {element.WarehousingScannedBy}
                                                         </span>
                                                     ) : (
                                                         <span style={{ color: '#6c757d' }}>{t('table.notScanned')}</span>

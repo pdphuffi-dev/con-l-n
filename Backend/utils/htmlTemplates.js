@@ -500,7 +500,10 @@ const generateHTML = (language, templateType, data = {}) => {
               
               <div class="action-info">
                 <strong>${translate('auth.actionNotAllowed')}</strong><br>
-                ${data.actionType === 'delivery' ? translate('auth.deliveryRequiresRegistration') : translate('auth.receiveRequiresRegistration')}
+                ${data.actionType === 'delivery' ? translate('auth.deliveryRequiresRegistration') : 
+                  data.actionType === 'receive' ? translate('auth.receiveRequiresRegistration') :
+                  data.actionType === 'assembling' ? 'Bạn cần đăng ký làm người dùng để có thể quét sản phẩm lắp ráp' :
+                  'Bạn cần đăng ký làm người dùng để có thể quét sản phẩm nhập kho'}
               </div>
               
               <div class="device-info">
@@ -572,6 +575,158 @@ const generateHTML = (language, templateType, data = {}) => {
                 } finally {
                   submitBtn.disabled = false;
                   submitBtn.textContent = '${translate('auth.registerAndContinue')}';
+                }
+              });
+            </script>
+          </body>
+        </html>
+      `;
+
+    case 'assemblingForm':
+      return `
+        <html>
+          <head>
+            <title>${translate('form.assemblingQuantity')} - ${data.productName}</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            ${baseStyles}
+          </head>
+          <body>
+            <div class="container">
+              <div class="success">🔧</div>
+              <h2>${translate('form.assemblingQuantity')}</h2>
+              <div class="product-info">
+                <strong>${data.productName}</strong><br>
+                ${translate('table.lotNumber')}: ${data.productBarcode}<br>
+                ${translate('form.receivedQuantity')}: ${data.receivedQuantity || translate('common.noData')}
+              </div>
+              ${data.userName ? `
+              <div class="product-info" style="background-color: #d4edda; border: 1px solid #c3e6cb;">
+                <strong>👤 ${translate('users.userName')}:</strong> ${data.userName}<br>
+                <strong>🏷️ ${translate('form.employeeCode')}:</strong> ${data.employeeCode}
+              </div>
+              ` : ''}
+              <form id="assemblingForm">
+                <div class="form-group">
+                  <label for="quantity">${translate('form.assemblingQuantity')}:</label>
+                  <input type="number" id="quantity" name="quantity" min="0" required placeholder="${translate('form.assemblingQuantity')}">
+                </div>
+                <button type="submit" class="button" id="submitBtn">${translate('form.submit')}</button>
+              </form>
+              <div id="message"></div>
+            </div>
+            <script>
+              const form = document.getElementById('assemblingForm');
+              const submitBtn = document.getElementById('submitBtn');
+              const messageDiv = document.getElementById('message');
+
+              form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const quantity = document.getElementById('quantity').value;
+
+                if (!quantity || quantity < 0) {
+                  messageDiv.innerHTML = '<div class="error">${translate('validation.quantityRequired')}</div>';
+                  return;
+                }
+
+                submitBtn.disabled = true;
+                submitBtn.textContent = '${translate('common.loading')}';
+
+                try {
+                  const response = await fetch(window.location.origin + '/update-assembling/${data.productId}?quantity=' + quantity, {
+                    method: 'GET'
+                  });
+
+                  if (response.ok) {
+                    messageDiv.innerHTML = '<div style="color: #28a745; font-size: 16px; margin-top: 15px;">✅ ${translate('success.productAssembled')}</div>';
+                    setTimeout(() => {
+                      window.close();
+                    }, 2000);
+                  } else {
+                    const errorData = await response.text();
+                    messageDiv.innerHTML = '<div class="error">' + errorData + '</div>';
+                  }
+                } catch (error) {
+                  messageDiv.innerHTML = '<div class="error">${translate('error.serverError')}</div>';
+                } finally {
+                  submitBtn.disabled = false;
+                  submitBtn.textContent = '${translate('form.submit')}';
+                }
+              });
+            </script>
+          </body>
+        </html>
+      `;
+
+    case 'warehousingForm':
+      return `
+        <html>
+          <head>
+            <title>${translate('form.warehousingQuantity')} - ${data.productName}</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            ${baseStyles}
+          </head>
+          <body>
+            <div class="container">
+              <div class="success">📦</div>
+              <h2>${translate('form.warehousingQuantity')}</h2>
+              <div class="product-info">
+                <strong>${data.productName}</strong><br>
+                ${translate('table.lotNumber')}: ${data.productBarcode}<br>
+                ${translate('form.assemblingQuantity')}: ${data.assemblingQuantity || translate('common.noData')}
+              </div>
+              ${data.userName ? `
+              <div class="product-info" style="background-color: #d4edda; border: 1px solid #c3e6cb;">
+                <strong>👤 ${translate('users.userName')}:</strong> ${data.userName}<br>
+                <strong>🏷️ ${translate('form.employeeCode')}:</strong> ${data.employeeCode}
+              </div>
+              ` : ''}
+              <form id="warehousingForm">
+                <div class="form-group">
+                  <label for="quantity">${translate('form.warehousingQuantity')}:</label>
+                  <input type="number" id="quantity" name="quantity" min="0" required placeholder="${translate('form.warehousingQuantity')}">
+                </div>
+                <button type="submit" class="button" id="submitBtn">${translate('form.submit')}</button>
+              </form>
+              <div id="message"></div>
+            </div>
+            <script>
+              const form = document.getElementById('warehousingForm');
+              const submitBtn = document.getElementById('submitBtn');
+              const messageDiv = document.getElementById('message');
+
+              form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const quantity = document.getElementById('quantity').value;
+
+                if (!quantity || quantity < 0) {
+                  messageDiv.innerHTML = '<div class="error">${translate('validation.quantityRequired')}</div>';
+                  return;
+                }
+
+                submitBtn.disabled = true;
+                submitBtn.textContent = '${translate('common.loading')}';
+
+                try {
+                  const response = await fetch(window.location.origin + '/update-warehousing/${data.productId}?quantity=' + quantity, {
+                    method: 'GET'
+                  });
+
+                  if (response.ok) {
+                    messageDiv.innerHTML = '<div style="color: #28a745; font-size: 16px; margin-top: 15px;">✅ ${translate('success.productWarehoused')}</div>';
+                    setTimeout(() => {
+                      window.close();
+                    }, 2000);
+                  } else {
+                    const errorData = await response.text();
+                    messageDiv.innerHTML = '<div class="error">' + errorData + '</div>';
+                  }
+                } catch (error) {
+                  messageDiv.innerHTML = '<div class="error">${translate('error.serverError')}</div>';
+                } finally {
+                  submitBtn.disabled = false;
+                  submitBtn.textContent = '${translate('form.submit')}';
                 }
               });
             </script>

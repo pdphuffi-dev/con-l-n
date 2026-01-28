@@ -5,6 +5,8 @@ module.exports = {
     productDeleted: "Sản phẩm đã được xóa thành công",
     productDelivered: "Sản phẩm đã được giao thành công",
     productReceived: "Sản phẩm đã được nhận thành công",
+    productAssembled: "Sản phẩm đã được lắp ráp thành công",
+    productWarehoused: "Sản phẩm đã được nhập kho thành công",
     userCreated: "Người dùng đã được tạo thành công",
     userUpdated: "Người dùng đã được cập nhật thành công",
     userDeleted: "Người dùng đã được xóa thành công",
@@ -53,6 +55,8 @@ module.exports = {
   form: {
     deliveryQuantity: 'Nhập số lượng giao đánh bóng',
     receivedQuantity: 'Nhập số lượng nhận đánh bóng',
+    assemblingQuantity: 'Nhập số lượng lắp ráp',
+    warehousingQuantity: 'Nhập số lượng nhập kho',
     productName: 'Tên sản phẩm',
     lotNumber: 'Số hiệu lố',
     employeeCode: 'Mã nhân viên',
@@ -62,6 +66,12 @@ module.exports = {
     table:{
       lotNumber: 'Số hiệu lố',
       quantity: 'Số lượng',
+      assembling: 'Lắp ráp',
+      warehousing: 'Nhập kho',
+      scanToAssemble: 'Quét để lắp ráp',
+      scanToWarehouse: 'Quét để nhập kho',
+      assemblingInfo: 'Thông tin lắp ráp',
+      warehousingInfo: 'Thông tin nhập kho',
      },
 
   auth: {
@@ -87,6 +97,15 @@ module.exports = {
   messages: {
     error: 'Lỗi',
     somethingWentWrong: 'Có lỗi xảy ra'
+  },
+
+  workflow: {
+    timingError: 'Chưa đủ thời gian để thực hiện bước tiếp theo',
+    workflowCompleted: 'Quy trình đã hoàn tất',
+    nextStep: 'Bước tiếp theo',
+    currentStatus: 'Trạng thái hiện tại',
+    waitTime: 'Thời gian chờ',
+    minutes: 'phút'
   },
 
 

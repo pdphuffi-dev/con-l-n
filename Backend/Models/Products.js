@@ -42,6 +42,38 @@ const ProductSchema = new mongoose.Schema(
             type: Number,
             required: false,
         },
+        // New workflow steps
+        ProductAssemblingDate: {
+            type: Date,
+            required: false,
+        },
+        ProductWarehousingDate: {
+            type: Date,
+            required: false,
+        },
+        AssemblingScannedBy: {
+            type: String,
+            required: false,
+        },
+        WarehousingScannedBy: {
+            type: String,
+            required: false,
+        },
+        AssemblingQuantity: {
+            type: Number,
+            required: false,
+        },
+        WarehousingQuantity: {
+            type: Number,
+            required: false,
+        },
+        // Workflow status tracking
+        WorkflowStatus: {
+            type: String,
+            enum: ['created', 'delivered', 'received', 'assembling', 'warehoused', 'completed'],
+            default: 'created',
+            required: false,
+        },
     });
 
 const Products = mongoose.model("Products", ProductSchema)

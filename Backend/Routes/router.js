@@ -5,6 +5,8 @@ const users = require('../Models/User');
 const { generateHTML } = require('../utils/htmlTemplates');
 const { getRealIP, getClientInfo } = require('../utils/getRealIP');
 const { generateDeviceId, getDeviceInfo, isValidDeviceId } = require('../utils/deviceId');
+const { validateWorkflowTiming, getNextWorkflowStep, updateWorkflowStatus } = require('../utils/workflowValidator');
+const { WorkflowConfig } = require('../Models/WorkflowConfig');
 
 router.post("/insertproduct", async (req, res) => {
     const { ProductName, ProductBarcode } = req.body;
@@ -144,7 +146,8 @@ router.put('/update-delivery/:id', async (req, res) => {
         const updateData = {
             ProductDeliveryDate: new Date(),
             ProductUpdatedDate: new Date(),
-            DeliveryScannedBy: scannedBy
+            DeliveryScannedBy: scannedBy,
+            WorkflowStatus: 'delivered'
         };
 
         // Add ShippingQuantity if provided
@@ -304,6 +307,126 @@ router.get('/receive-product/:id', async (req, res) => {
     }
 });
 
+router.get('/assemble-product/:id', async (req, res) => {
+    try {
+        // Check if user is registered first
+        const clientIP = getRealIP(req);
+        const deviceId = generateDeviceId(req);
+        const scannedUser = await users.findOne({ 
+            $or: [
+                { DeviceId: deviceId },
+                { DeviceIP: clientIP }
+            ]
+        });
+
+        if (!scannedUser) {
+            // User not registered - show registration form
+            const deviceInfo = getDeviceInfo(req);
+            const html = generateHTML(req.language, 'userRegistrationRequired', {
+                deviceInfo,
+                redirectUrl: `/assemble-product/${req.params.id}?lang=${req.language}`,
+                actionType: 'assembling'
+            });
+            return res.status(200).send(html);
+        }
+
+        const product = await products.findById(req.params.id);
+        if (!product) {
+            const errorHtml = generateHTML(req.language, 'errorPage', {
+                message: req.t('error.productNotFound')
+            });
+            return res.status(404).send(errorHtml);
+        }
+
+        // Validate workflow timing
+        const validation = await validateWorkflowTiming(product, 'assembling');
+        if (!validation.isValid) {
+            const errorHtml = generateHTML(req.language, 'errorPage', {
+                message: validation.message
+            });
+            return res.status(400).send(errorHtml);
+        }
+
+        const html = generateHTML(req.language, 'assemblingForm', {
+            productName: product.ProductName,
+            productBarcode: product.ProductBarcode,
+            receivedQuantity: product.ReceivedQuantity,
+            productId: req.params.id,
+            userName: scannedUser.UserName,
+            employeeCode: scannedUser.EmployeeCode
+        });
+        
+        res.status(200).send(html);
+    }
+    catch (err) {
+        console.log(err);
+        const errorHtml = generateHTML(req.language, 'errorPage', {
+            message: req.t('error.serverError')
+        });
+        res.status(500).send(errorHtml);
+    }
+});
+
+router.get('/warehouse-product/:id', async (req, res) => {
+    try {
+        // Check if user is registered first
+        const clientIP = getRealIP(req);
+        const deviceId = generateDeviceId(req);
+        const scannedUser = await users.findOne({ 
+            $or: [
+                { DeviceId: deviceId },
+                { DeviceIP: clientIP }
+            ]
+        });
+
+        if (!scannedUser) {
+            // User not registered - show registration form
+            const deviceInfo = getDeviceInfo(req);
+            const html = generateHTML(req.language, 'userRegistrationRequired', {
+                deviceInfo,
+                redirectUrl: `/warehouse-product/${req.params.id}?lang=${req.language}`,
+                actionType: 'warehousing'
+            });
+            return res.status(200).send(html);
+        }
+
+        const product = await products.findById(req.params.id);
+        if (!product) {
+            const errorHtml = generateHTML(req.language, 'errorPage', {
+                message: req.t('error.productNotFound')
+            });
+            return res.status(404).send(errorHtml);
+        }
+
+        // Validate workflow timing
+        const validation = await validateWorkflowTiming(product, 'warehousing');
+        if (!validation.isValid) {
+            const errorHtml = generateHTML(req.language, 'errorPage', {
+                message: validation.message
+            });
+            return res.status(400).send(errorHtml);
+        }
+
+        const html = generateHTML(req.language, 'warehousingForm', {
+            productName: product.ProductName,
+            productBarcode: product.ProductBarcode,
+            assemblingQuantity: product.AssemblingQuantity,
+            productId: req.params.id,
+            userName: scannedUser.UserName,
+            employeeCode: scannedUser.EmployeeCode
+        });
+        
+        res.status(200).send(html);
+    }
+    catch (err) {
+        console.log(err);
+        const errorHtml = generateHTML(req.language, 'errorPage', {
+            message: req.t('error.serverError')
+        });
+        res.status(500).send(errorHtml);
+    }
+});
+
 // Update received date via QR scan
 router.put('/update-received/:id', async (req, res) => {
     const { ReceivedQuantity } = req.body;
@@ -323,7 +446,8 @@ router.put('/update-received/:id', async (req, res) => {
         const updateData = {
             ProductReceivedDate: new Date(),
             ProductUpdatedDate: new Date(),
-            ReceivedScannedBy: scannedBy
+            ReceivedScannedBy: scannedBy,
+            WorkflowStatus: 'received'
         };
 
         // Add ReceivedQuantity if provided
@@ -423,7 +547,8 @@ router.get('/update-delivery/:id', async (req, res) => {
         const updateData = {
             ProductDeliveryDate: new Date(),
             ProductUpdatedDate: new Date(),
-            DeliveryScannedBy: scannedBy
+            DeliveryScannedBy: scannedBy,
+            WorkflowStatus: 'delivered'
         };
 
         // Add ShippingQuantity if provided
@@ -736,6 +861,439 @@ router.get('/update-received/:id', async (req, res) => {
                 <body>
                     <div class="error">❌</div>
                     <div class="message">Có lỗi xảy ra khi cập nhật ngày nhận. Vui lòng thử lại.</div>
+                </body>
+            </html>
+        `);
+    }
+})
+
+router.get('/update-assembling/:id', async (req, res) => {
+    const { quantity } = req.query;
+    const clientIP = getRealIP(req);
+
+    try {
+        // Find user by IP - require user to be registered
+        const deviceId = generateDeviceId(req);
+        const scannedUser = await users.findOne({ 
+            $or: [
+                { DeviceId: deviceId },
+                { DeviceIP: clientIP }
+            ]
+        });
+
+        if (!scannedUser) {
+            // User not registered - show error page
+            return res.status(403).send(`
+                <html>
+                    <head>
+                        <title>${req.t('auth.userNotRegistered')}</title>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <style>
+                            body {
+                                font-family: Arial, sans-serif;
+                                text-align: center;
+                                padding: 50px;
+                                background-color: #fff3cd;
+                            }
+                            .warning {
+                                color: #856404;
+                                font-size: 24px;
+                                margin-bottom: 20px;
+                            }
+                            .message {
+                                font-size: 18px;
+                                color: #333;
+                                margin-bottom: 30px;
+                            }
+                            .register-link {
+                                background-color: #007bff;
+                                color: white;
+                                padding: 12px 24px;
+                                text-decoration: none;
+                                border-radius: 5px;
+                                font-size: 16px;
+                                display: inline-block;
+                            }
+                            .register-link:hover {
+                                background-color: #0056b3;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="warning">⚠️</div>
+                        <div class="message">Bạn cần đăng ký làm người dùng để có thể quét sản phẩm lắp ráp</div>
+                        <a href="/register-device-form?lang=${req.language}" class="register-link">${req.t('auth.registerAndContinue')}</a>
+                    </body>
+                </html>
+            `);
+        }
+
+        const product = await products.findById(req.params.id);
+        if (!product) {
+            return res.status(404).send('Không tìm thấy sản phẩm');
+        }
+
+        // Validate workflow timing
+        const validation = await validateWorkflowTiming(product, 'assembling');
+        if (!validation.isValid) {
+            return res.status(400).send(`
+                <html>
+                    <head>
+                        <title>Chưa đủ thời gian</title>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <style>
+                            body {
+                                font-family: Arial, sans-serif;
+                                text-align: center;
+                                padding: 50px;
+                                background-color: #fff3cd;
+                            }
+                            .warning {
+                                color: #856404;
+                                font-size: 24px;
+                                margin-bottom: 20px;
+                            }
+                            .message {
+                                font-size: 18px;
+                                color: #333;
+                                margin-bottom: 30px;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="warning">⏰</div>
+                        <div class="message">${validation.message}</div>
+                    </body>
+                </html>
+            `);
+        }
+
+        const scannedBy = `${scannedUser.UserName} (${scannedUser.EmployeeCode})`;
+
+        const updateData = {
+            ProductAssemblingDate: new Date(),
+            ProductUpdatedDate: new Date(),
+            AssemblingScannedBy: scannedBy,
+            WorkflowStatus: updateWorkflowStatus({...product.toObject(), ProductAssemblingDate: new Date()})
+        };
+
+        // Add AssemblingQuantity if provided
+        if (quantity !== undefined) {
+            updateData.AssemblingQuantity = parseInt(quantity);
+        }
+
+        const updateProducts = await products.findByIdAndUpdate(
+            req.params.id,
+            updateData,
+            { new: true }
+        );
+        console.log("Assembling date updated via QR scan by:", scannedBy);
+
+        // Emit socket event to update all connected clients
+        const io = req.app.get('io');
+        io.emit('productUpdated', {
+            productId: req.params.id,
+            type: 'assembling',
+            scannedBy: scannedBy,
+            timestamp: new Date()
+        });
+
+        const userInfo = `<div class="user-info" style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                <strong>Người thực hiện:</strong> ${scannedUser.UserName}<br>
+                <strong>Mã NV:</strong> ${scannedUser.EmployeeCode}
+            </div>`;
+
+        res.status(200).send(`
+            <html>
+                <head>
+                    <title>Cập nhật lắp ráp</title>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <style>
+                        body {
+                            font-family: Arial, sans-serif;
+                            text-align: center;
+                            padding: 50px;
+                            background-color: #f0f8ff;
+                        }
+                        .success {
+                            color: #28a745;
+                            font-size: 24px;
+                            margin-bottom: 20px;
+                        }
+                        .message {
+                            font-size: 18px;
+                            color: #333;
+                            margin-bottom: 20px;
+                        }
+                        .user-info {
+                            font-size: 14px;
+                            color: #495057;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="success">✅</div>
+                    <div class="message">Lắp ráp đã được cập nhật thành công!</div>
+                    ${userInfo}
+                </body>
+            </html>
+        `);
+    }
+    catch (err) {
+        console.log(err);
+        res.status(500).send(`
+            <html>
+                <head>
+                    <title>Lỗi cập nhật</title>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <style>
+                        body {
+                            font-family: Arial, sans-serif;
+                            text-align: center;
+                            padding: 50px;
+                            background-color: #ffebee;
+                        }
+                        .error {
+                            color: #dc3545;
+                            font-size: 24px;
+                            margin-bottom: 20px;
+                        }
+                        .message {
+                            font-size: 18px;
+                            color: #333;
+                            margin-bottom: 30px;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="error">❌</div>
+                    <div class="message">Có lỗi xảy ra khi cập nhật lắp ráp. Vui lòng thử lại.</div>
+                </body>
+            </html>
+        `);
+    }
+})
+
+router.get('/update-warehousing/:id', async (req, res) => {
+    const { quantity } = req.query;
+    const clientIP = getRealIP(req);
+
+    try {
+        // Find user by IP - require user to be registered
+        const deviceId = generateDeviceId(req);
+        const scannedUser = await users.findOne({ 
+            $or: [
+                { DeviceId: deviceId },
+                { DeviceIP: clientIP }
+            ]
+        });
+
+        if (!scannedUser) {
+            // User not registered - show error page
+            return res.status(403).send(`
+                <html>
+                    <head>
+                        <title>${req.t('auth.userNotRegistered')}</title>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <style>
+                            body {
+                                font-family: Arial, sans-serif;
+                                text-align: center;
+                                padding: 50px;
+                                background-color: #fff3cd;
+                            }
+                            .warning {
+                                color: #856404;
+                                font-size: 24px;
+                                margin-bottom: 20px;
+                            }
+                            .message {
+                                font-size: 18px;
+                                color: #333;
+                                margin-bottom: 30px;
+                            }
+                            .register-link {
+                                background-color: #007bff;
+                                color: white;
+                                padding: 12px 24px;
+                                text-decoration: none;
+                                border-radius: 5px;
+                                font-size: 16px;
+                                display: inline-block;
+                            }
+                            .register-link:hover {
+                                background-color: #0056b3;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="warning">⚠️</div>
+                        <div class="message">Bạn cần đăng ký làm người dùng để có thể quét sản phẩm nhập kho</div>
+                        <a href="/register-device-form?lang=${req.language}" class="register-link">${req.t('auth.registerAndContinue')}</a>
+                    </body>
+                </html>
+            `);
+        }
+
+        const product = await products.findById(req.params.id);
+        if (!product) {
+            return res.status(404).send('Không tìm thấy sản phẩm');
+        }
+
+        // Validate workflow timing
+        const validation = await validateWorkflowTiming(product, 'warehousing');
+        if (!validation.isValid) {
+            return res.status(400).send(`
+                <html>
+                    <head>
+                        <title>Chưa đủ thời gian</title>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <style>
+                            body {
+                                font-family: Arial, sans-serif;
+                                text-align: center;
+                                padding: 50px;
+                                background-color: #fff3cd;
+                            }
+                            .warning {
+                                color: #856404;
+                                font-size: 24px;
+                                margin-bottom: 20px;
+                            }
+                            .message {
+                                font-size: 18px;
+                                color: #333;
+                                margin-bottom: 30px;
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="warning">⏰</div>
+                        <div class="message">${validation.message}</div>
+                    </body>
+                </html>
+            `);
+        }
+
+        const scannedBy = `${scannedUser.UserName} (${scannedUser.EmployeeCode})`;
+
+        const updateData = {
+            ProductWarehousingDate: new Date(),
+            ProductUpdatedDate: new Date(),
+            WarehousingScannedBy: scannedBy,
+            WorkflowStatus: 'completed'
+        };
+
+        // Add WarehousingQuantity if provided
+        if (quantity !== undefined) {
+            updateData.WarehousingQuantity = parseInt(quantity);
+        }
+
+        const updateProducts = await products.findByIdAndUpdate(
+            req.params.id,
+            updateData,
+            { new: true }
+        );
+        console.log("Warehousing date updated via QR scan by:", scannedBy);
+
+        // Emit socket event to update all connected clients
+        const io = req.app.get('io');
+        io.emit('productUpdated', {
+            productId: req.params.id,
+            type: 'warehousing',
+            scannedBy: scannedBy,
+            timestamp: new Date()
+        });
+
+        const userInfo = `<div class="user-info" style="background-color: #e9ecef; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+                <strong>Người thực hiện:</strong> ${scannedUser.UserName}<br>
+                <strong>Mã NV:</strong> ${scannedUser.EmployeeCode}
+            </div>`;
+
+        res.status(200).send(`
+            <html>
+                <head>
+                    <title>Cập nhật nhập kho</title>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <style>
+                        body {
+                            font-family: Arial, sans-serif;
+                            text-align: center;
+                            padding: 50px;
+                            background-color: #f0f8ff;
+                        }
+                        .success {
+                            color: #28a745;
+                            font-size: 24px;
+                            margin-bottom: 20px;
+                        }
+                        .message {
+                            font-size: 18px;
+                            color: #333;
+                            margin-bottom: 20px;
+                        }
+                        .user-info {
+                            font-size: 14px;
+                            color: #495057;
+                        }
+                        .completed {
+                            background-color: #d4edda;
+                            border: 2px solid #c3e6cb;
+                            padding: 15px;
+                            border-radius: 8px;
+                            margin: 20px 0;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="success">✅</div>
+                    <div class="message">Nhập kho đã được cập nhật thành công!</div>
+                    <div class="completed">
+                        <strong>🎉 QUY TRÌNH HOÀN TẤT 🎉</strong><br>
+                        Sản phẩm đã hoàn thành tất cả các bước trong quy trình
+                    </div>
+                    ${userInfo}
+                </body>
+            </html>
+        `);
+    }
+    catch (err) {
+        console.log(err);
+        res.status(500).send(`
+            <html>
+                <head>
+                    <title>Lỗi cập nhật</title>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <style>
+                        body {
+                            font-family: Arial, sans-serif;
+                            text-align: center;
+                            padding: 50px;
+                            background-color: #ffebee;
+                        }
+                        .error {
+                            color: #dc3545;
+                            font-size: 24px;
+                            margin-bottom: 20px;
+                        }
+                        .message {
+                            font-size: 18px;
+                            color: #333;
+                            margin-bottom: 30px;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="error">❌</div>
+                    <div class="message">Có lỗi xảy ra khi cập nhật nhập kho. Vui lòng thử lại.</div>
                 </body>
             </html>
         `);
@@ -1311,5 +1869,253 @@ router.post('/register-device', async (req, res) => {
     }
 })
 
+// Workflow configuration endpoints
+router.get('/workflow-config', async (req, res) => {
+    try {
+        const configs = await WorkflowConfig.find({}).sort({ stepName: 1 });
+        res.status(200).json({
+            message: req.t('success.dataRetrieved'),
+            data: configs,
+            language: req.language
+        });
+    } catch (error) {
+        console.error('Error fetching workflow config:', error);
+        res.status(500).json({
+            message: req.t('error.serverError'),
+            error: error.message,
+            language: req.language
+        });
+    }
+});
+
+router.put('/workflow-config/:stepName', async (req, res) => {
+    try {
+        const { stepName } = req.params;
+        const { minimumMinutes, description, isActive } = req.body;
+
+        const updateData = {
+            updatedDate: new Date()
+        };
+
+        if (minimumMinutes !== undefined) {
+            updateData.minimumMinutes = Math.max(0, parseInt(minimumMinutes));
+        }
+        if (description !== undefined) {
+            updateData.description = description;
+        }
+        if (isActive !== undefined) {
+            updateData.isActive = Boolean(isActive);
+        }
+
+        const updatedConfig = await WorkflowConfig.findOneAndUpdate(
+            { stepName: stepName },
+            updateData,
+            { new: true }
+        );
+
+        if (!updatedConfig) {
+            return res.status(404).json({
+                message: 'Workflow configuration not found',
+                language: req.language
+            });
+        }
+
+        res.status(200).json({
+            message: req.t('success.dataUpdated') || 'Configuration updated successfully',
+            data: updatedConfig,
+            language: req.language
+        });
+    } catch (error) {
+        console.error('Error updating workflow config:', error);
+        res.status(500).json({
+            message: req.t('error.serverError'),
+            error: error.message,
+            language: req.language
+        });
+    }
+});
+
+router.get('/workflow-admin', async (req, res) => {
+    try {
+        const configs = await WorkflowConfig.find({}).sort({ stepName: 1 });
+        
+        const configRows = configs.map(config => `
+            <tr>
+                <td>${config.stepName}</td>
+                <td>${config.description}</td>
+                <td>
+                    <input type="number" id="${config.stepName}_minutes" value="${config.minimumMinutes}" min="0" style="width: 80px;">
+                </td>
+                <td>
+                    <input type="checkbox" id="${config.stepName}_active" ${config.isActive ? 'checked' : ''}>
+                </td>
+                <td>
+                    <button onclick="updateConfig('${config.stepName}')" class="btn-update">Cập nhật</button>
+                </td>
+            </tr>
+        `).join('');
+
+        const html = `
+            <html>
+                <head>
+                    <title>Cấu hình Workflow</title>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <style>
+                        body {
+                            font-family: Arial, sans-serif;
+                            padding: 20px;
+                            background-color: #f8f9fa;
+                        }
+                        .container {
+                            max-width: 1000px;
+                            margin: 0 auto;
+                            background: white;
+                            padding: 30px;
+                            border-radius: 10px;
+                            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                        }
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                            margin-top: 20px;
+                        }
+                        th, td {
+                            border: 1px solid #ddd;
+                            padding: 12px;
+                            text-align: left;
+                        }
+                        th {
+                            background-color: #f8f9fa;
+                            font-weight: bold;
+                        }
+                        .btn-update {
+                            background-color: #007bff;
+                            color: white;
+                            padding: 6px 12px;
+                            border: none;
+                            border-radius: 4px;
+                            cursor: pointer;
+                        }
+                        .btn-update:hover {
+                            background-color: #0056b3;
+                        }
+                        .message {
+                            padding: 10px;
+                            margin: 10px 0;
+                            border-radius: 4px;
+                            display: none;
+                        }
+                        .success {
+                            background-color: #d4edda;
+                            color: #155724;
+                            border: 1px solid #c3e6cb;
+                        }
+                        .error {
+                            background-color: #f8d7da;
+                            color: #721c24;
+                            border: 1px solid #f5c6cb;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <h1>🔧 Cấu hình Workflow</h1>
+                        <p>Quản lý thời gian tối thiểu giữa các bước trong quy trình sản xuất</p>
+                        
+                        <div id="message" class="message"></div>
+                        
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Bước</th>
+                                    <th>Mô tả</th>
+                                    <th>Thời gian tối thiểu (phút)</th>
+                                    <th>Kích hoạt</th>
+                                    <th>Hành động</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${configRows}
+                            </tbody>
+                        </table>
+                        
+                        <div style="margin-top: 20px; padding: 15px; background-color: #e9ecef; border-radius: 5px;">
+                            <h4>📝 Hướng dẫn:</h4>
+                            <ul>
+                                <li><strong>delivery_to_receive:</strong> Thời gian từ khi giao hàng đến khi có thể nhận hàng</li>
+                                <li><strong>receive_to_assembling:</strong> Thời gian từ khi nhận hàng đến khi có thể lắp ráp</li>
+                                <li><strong>assembling_to_warehousing:</strong> Thời gian từ khi lắp ráp đến khi có thể nhập kho</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <script>
+                        async function updateConfig(stepName) {
+                            const minutes = document.getElementById(stepName + '_minutes').value;
+                            const isActive = document.getElementById(stepName + '_active').checked;
+                            
+                            try {
+                                const response = await fetch('/workflow-config/' + stepName, {
+                                    method: 'PUT',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'Accept-Language': '${req.language}',
+                                        'X-Language': '${req.language}'
+                                    },
+                                    body: JSON.stringify({
+                                        minimumMinutes: parseInt(minutes),
+                                        isActive: isActive
+                                    })
+                                });
+
+                                const data = await response.json();
+                                const messageDiv = document.getElementById('message');
+                                
+                                if (response.ok) {
+                                    messageDiv.className = 'message success';
+                                    messageDiv.textContent = data.message || 'Cập nhật thành công!';
+                                } else {
+                                    messageDiv.className = 'message error';
+                                    messageDiv.textContent = data.message || 'Có lỗi xảy ra!';
+                                }
+                                
+                                messageDiv.style.display = 'block';
+                                setTimeout(() => {
+                                    messageDiv.style.display = 'none';
+                                }, 3000);
+                                
+                            } catch (error) {
+                                const messageDiv = document.getElementById('message');
+                                messageDiv.className = 'message error';
+                                messageDiv.textContent = 'Có lỗi xảy ra khi cập nhật!';
+                                messageDiv.style.display = 'block';
+                                setTimeout(() => {
+                                    messageDiv.style.display = 'none';
+                                }, 3000);
+                            }
+                        }
+                    </script>
+                </body>
+            </html>
+        `;
+        
+        res.status(200).send(html);
+    } catch (error) {
+        console.error('Error generating workflow admin page:', error);
+        res.status(500).send(`
+            <html>
+                <head>
+                    <title>Lỗi</title>
+                    <meta charset="UTF-8">
+                </head>
+                <body>
+                    <h1>Có lỗi xảy ra khi tải trang cấu hình</h1>
+                    <p>${error.message}</p>
+                </body>
+            </html>
+        `);
+    }
+});
 
 module.exports = router;

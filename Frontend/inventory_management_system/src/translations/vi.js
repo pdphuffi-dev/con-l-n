@@ -12,7 +12,7 @@ export const vi = {
     title: "NHẬT KÍ GIA CÔNG NM2",
     addNewProduct: "Thêm mặt hàng mới",
     refresh: "Làm mới",
-    qrInstructions: "Hướng dẫn quét QR: Chỉ sử dụng camera điện thoại để quét QR code và cập nhật ngày giao/nhận tự động. Quy trình: Ngày giao → Ngày nhận → Hoàn thành.",
+    qrInstructions: "Hướng dẫn quét QR: Chỉ sử dụng camera điện thoại để quét QR code. Quy trình: Giao hàng → Nhận hàng → Lắp ráp → Nhập kho → Hoàn thành.",
     ipNote: "Nếu IP không đúng, hãy thay đổi NETWORK_IP trong code thành địa chỉ IP thực của máy bạn (ví dụ: 192.168.1.105)."
   },
 
@@ -21,16 +21,18 @@ export const vi = {
     createdDate: "Ngày tạo",
     productName: "Tên hàng",
     lotNumber: "Số hiệu lố",
-    deliveryInfo: "Ngày giao đánh bóng  / Số lượng",
-    receivedInfo: "Ngày nhận đánh bóng / Số lượng",
-    assembling: "Đang lắp ráp / Số lượng",
-    received: "Nhập kho / Số lượng",
+    deliveryInfo: "Ngày giao đánh bóng / Số lượng",
+    receivedInfo: "Ngày nhận đánh bóng / Số lượng", 
+    assemblingInfo: "Ngày lắp ráp / Số lượng",
+    warehousingInfo: "Ngày nhập kho / Số lượng",
     updatedDate: "Ngày cập nhật",
     qrCode: "QR Code",
     notScanned: "Chưa quét",
     completed: "Hoàn thành",
     scanToDelivery: "Quét mã để nhập số lượng giao",
-    scanToReceive: "Quét mã để nhập số lượng nhận"
+    scanToReceive: "Quét mã để nhập số lượng nhận",
+    scanToAssemble: "Quét mã để lắp ráp",
+    scanToWarehouse: "Quét mã để nhập kho"
   },
 
   form: {

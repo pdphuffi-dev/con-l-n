@@ -1,5 +1,10 @@
 const connectToMongo = require('./db')
-connectToMongo();
+const { initializeDefaultConfig } = require('./Models/WorkflowConfig')
+
+connectToMongo().then(() => {
+  // Initialize default workflow configurations after database connection
+  initializeDefaultConfig();
+});
 
 const express = require('express')
 const app = express()
