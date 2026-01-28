@@ -52,25 +52,16 @@ module.exports = {
 
   form: {
     deliveryQuantity: 'Nhập số lượng giao đánh bóng',
-    productName: 'Tên sản phẩm',
-    lotNumber: 'Số hiệu lố',
-    employeeCode: 'Mã nhân viên'
-    },
-
-    table:{
-      lotNumber: 'Số hiệu lố',
-    },
-
-    form: {
     receiveQuantity: 'Nhập số lượng nhận đánh bóng',
     productName: 'Tên sản phẩm',
     lotNumber: 'Số hiệu lố',
     employeeCode: 'Mã nhân viên'
     },
-    
+
     table:{
       lotNumber: 'Số hiệu lố',
-    },
+      quantity: 'Số lượng',
+     },
 
-     
+
 };

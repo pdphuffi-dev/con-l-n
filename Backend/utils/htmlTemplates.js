@@ -76,7 +76,7 @@ const generateHTML = (language, templateType, data = {}) => {
       return `
         <html>
           <head>
-            <title>${translate('form.deliveryQuantity')} - ${data.productName}</title>
+            <title>${translate('deliveryQuantity')} - ${data.productName}</title>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             ${baseStyles}

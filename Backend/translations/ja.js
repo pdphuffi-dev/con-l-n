@@ -52,6 +52,7 @@ module.exports = {
 
   form: {
     deliveryQuantity: '研磨品の出荷数量を入力',
+    receiveQuantity: '研磨受入数量を入力',
     productName: '製品名',
     lotNumber: 'ロット番号',
     employeeCode: '従業員コード'
@@ -59,17 +60,8 @@ module.exports = {
     
     table:{
       lotNumber: 'ット番号',
-    },
+     },
 
-    form: {
-     receiveQuantity: '研磨受入数量を入力',
-    productName: '製品名',
-    lotNumber: 'ロット番号',
-    employeeCode: '従業員コード'
-    },
-    
-    table:{
-      lotNumber: 'ット番号',
-    },
+
   
 };
