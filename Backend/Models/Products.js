@@ -34,6 +34,21 @@ const ProductSchema = new mongoose.Schema(
             type: String,
             required: false,
         },
+        WorkflowStep: {
+            type: String,
+            enum: ['delivery', 'received', 'completed'],
+            default: null,
+            required: false,
+        },
+        NextStepAvailable: {
+            type: Date,
+            required: false,
+        },
+        CountdownDuration: {
+            type: Number, // in seconds
+            default: 0,
+            required: false,
+        },
         ShippingQuantity: {
             type: Number,
             required: false,

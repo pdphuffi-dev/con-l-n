@@ -41,17 +41,17 @@ const initializeDefaultConfig = async () => {
             const defaultConfigs = [
                 {
                     stepName: 'delivery_to_receive',
-                    minimumMinutes: 30,
+                    minimumMinutes: 1,
                     description: 'Thời gian tối thiểu từ giao hàng đến nhận hàng'
                 },
                 {
                     stepName: 'receive_to_assembling',
-                    minimumMinutes: 60,
+                    minimumMinutes: 1,
                     description: 'Thời gian tối thiểu từ nhận hàng đến lắp ráp'
                 },
                 {
                     stepName: 'assembling_to_warehousing',
-                    minimumMinutes: 120,
+                    minimumMinutes: 1,
                     description: 'Thời gian tối thiểu từ lắp ráp đến nhập kho'
                 }
             ];

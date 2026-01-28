@@ -164,10 +164,17 @@ router.put('/update-delivery/:id', async (req, res) => {
 
         // Emit socket event to update all connected clients
         const io = req.app.get('io');
+        console.log('📡 Emitting productUpdated event (PUT delivery):', {
+            productId: req.params.id,
+            type: 'delivery',
+            scannedBy: scannedBy,
+            product: updateProducts
+        });
         io.emit('productUpdated', {
             productId: req.params.id,
             type: 'delivery',
             scannedBy: scannedBy,
+            product: updateProducts,
             timestamp: new Date()
         });
 
@@ -464,10 +471,17 @@ router.put('/update-received/:id', async (req, res) => {
 
         // Emit socket event to update all connected clients
         const io = req.app.get('io');
+        console.log('📡 Emitting productUpdated event (PUT received):', {
+            productId: req.params.id,
+            type: 'received',
+            scannedBy: scannedBy,
+            product: updateProducts
+        });
         io.emit('productUpdated', {
             productId: req.params.id,
             type: 'received',
             scannedBy: scannedBy,
+            product: updateProducts,
             timestamp: new Date()
         });
 

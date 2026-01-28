@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import io from 'socket.io-client'
 import { NETWORK_IP, API_PORT, API_BASE_URL, WS_URL } from '../config'
+import CountdownTimer from './CountdownTimer'
 import { useLanguage } from '../contexts/LanguageContext'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useNotification } from '../hooks/useNotification'
@@ -74,6 +75,9 @@ export default function Products() {
     const [socket, setSocket] = useState(null);
     const [receivingProduct, setReceivingProduct] = useState(null);
     const [receivedQuantity, setReceivedQuantity] = useState("");
+    const [showCountdown, setShowCountdown] = useState(false);
+    const [countdownProduct, setCountdownProduct] = useState(null);
+    const [nextStep, setNextStep] = useState('');
 
     useEffect(() => {
         getProducts();
@@ -84,9 +88,37 @@ export default function Products() {
 
         // Listen for product updates
         newSocket.on('productUpdated', (data) => {
-            console.log('Product updated via socket:', data);
+            console.log('📡 Product updated via socket:', data);
+            console.log('📦 Product data:', data.product);
+            console.log('🏷️ Update type:', data.type);
+
             // Refresh product list when any product is updated
-            getProducts();
+            try {
+                getProducts();
+
+                // Use product data from socket event to show countdown immediately
+                const updatedProduct = data.product;
+                console.log('🔍 Checking countdown conditions:', {
+                    hasProduct: !!updatedProduct,
+                    updateType: data.type,
+                    isNotWarehousing: data.type !== 'warehousing'
+                });
+
+                if (updatedProduct && typeof updatedProduct === 'object' && data.type !== 'warehousing') {
+                    const nextStepLabel = getNextStepLabel(updatedProduct);
+                    console.log('⏰ Showing countdown for next step:', nextStepLabel);
+
+                    // Show countdown for next step (except final step)
+                    setCountdownProduct(updatedProduct);
+                    setNextStep(nextStepLabel);
+                    setShowCountdown(true);
+                } else {
+                    console.log('⏸️ No countdown needed for this update');
+                }
+            } catch (error) {
+                console.error('❌ Error refreshing product list:', error);
+                getProducts();
+            }
         });
 
         // Listen for language changes to refresh data
@@ -143,6 +175,38 @@ export default function Products() {
             showNotification(errorMessage, 'error');
         }
     }
+
+    // Countdown timer functions
+    const handleCountdownComplete = () => {
+        console.log('Countdown completed, transitioning to next step');
+        setShowCountdown(false);
+        setCountdownProduct(null);
+        setNextStep('');
+        // Refresh data to show updated status
+        getProducts();
+    };
+
+    const handleCountdownSkip = () => {
+        console.log('Countdown skipped by user');
+        setShowCountdown(false);
+        setCountdownProduct(null);
+        setNextStep('');
+        // Refresh data
+        getProducts();
+    };
+
+    const getNextStepLabel = (product) => {
+        if (!product.ProductDeliveryDate) {
+            return "Sang công đoạn nhận hàng";
+        } else if (!product.ProductReceivedDate) {
+            return "Sang công đoạn lắp ráp";
+        } else if (!product.ProductAssemblingDate) {
+            return "Sang công đoạn nhập kho";
+        } else if (!product.ProductWarehousingDate) {
+            return "Hoàn thành quy trình";
+        }
+        return "Quy trình hoàn thành";
+    };
 
     return (
         <>
@@ -362,6 +426,17 @@ export default function Products() {
                 )} */}
 
             </div>
+
+            {/* Countdown Timer Modal */}
+            {showCountdown && countdownProduct && (
+                <CountdownTimer
+                    duration={30}
+                    onComplete={handleCountdownComplete}
+                    onSkip={handleCountdownSkip}
+                    label={nextStep}
+                    buttonText="Bỏ qua đếm ngược"
+                />
+            )}
 
         </>
     )
