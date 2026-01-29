@@ -303,8 +303,8 @@ export default function Products() {
                             <tr className="tr_color">
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.stt')}</th>
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.createdDate')}</th>
-                                <th scope="col" style={{ textAlign: 'center' }}>{t('table.productName')}</th>
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.qrCode')}</th>
+                                <th scope="col" style={{ textAlign: 'center' }}>{t('table.productName')}</th>
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.lotNumber')}</th>
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.deliveryInfo')}</th>
                                 <th scope="col" style={{ textAlign: 'center' }}>{t('table.receivedInfo')}</th>
@@ -376,7 +376,6 @@ export default function Products() {
                                             <tr>
                                                 <th scope="row" style={{ textAlign: 'center' }}>{id + 1}</th>
                                                 <td style={{ textAlign: 'center' }}>{formatDate(element.ProductCreatedDate)}</td>
-                                                <td style={{ textAlign: 'center' }}>{element.ProductName}</td>
                                                 <td style={{ minWidth: '140px', textAlign: 'center', verticalAlign: 'middle' }}>
                                                     {qrContent ? (
                                                         <div>
@@ -412,6 +411,7 @@ export default function Products() {
                                                         </div>
                                                     )}
                                                 </td>
+                                                <td style={{ textAlign: 'center' }}>{element.ProductName}</td>
                                                 <td style={{ textAlign: 'center' }}>{element.ProductBarcode.includes('GENERATE') ? '-': element.ProductBarcode}</td>
                                                 <td style={{ textAlign: 'center' }}>
                                                     <div>{element.ShippingQuantity || '-'}</div>
@@ -426,6 +426,7 @@ export default function Products() {
                                                     )}
                                                     </div>
                                                 </td>
+                                                 
                                                 {/* <td style={{ textAlign: 'center' }}>
                                                     {element.ShippingQuantity || '-'}
                                                 </td> */}
