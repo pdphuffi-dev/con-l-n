@@ -7,13 +7,13 @@
     position: sticky;
     top: 0;
     z-index: 10;               /* Đảm bảo nằm trên các nội dung khác */
-    background-color: #dc3545;  /* Màu nền đỏ như header hiện tại của bạn */
+    background-color: #4621cc;  /* Màu nền đỏ như header hiện tại của bạn */
 }
 
 /* Giữ màu chữ trắng và các style khác nếu cần */
 .sticky-header th {
     color: white;
-    background-color: #dc3545 !important; /* !important để đè bootstrap nếu cần */
+    background-color: #2929e8 !important; /* !important để đè bootstrap nếu cần */
     border-bottom: 2px solid #fff;        /* đường viền dưới đẹp hơn khi dính */
 }
 

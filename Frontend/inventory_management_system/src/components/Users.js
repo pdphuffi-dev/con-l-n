@@ -150,6 +150,7 @@ export default function Users() {
                 <div className="overflow-auto mt-3" style={{ maxHeight: "40rem" }}>
                     <table className="table table-striped table-hover mt-3 fs-6" style={{ minWidth: '1000px' }}>
                         <thead>
+                            <thead className="sticky-header"></thead>
                             <tr className="tr_color">
                                 <th scope="col" style={{ textAlign: 'center' }}>STT</th>
                                 <th scope="col" style={{ textAlign: 'center' }}>Ngày tạo</th>
